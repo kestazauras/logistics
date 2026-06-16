@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/KB-RB-upd1.html"
+    }
+  ]
+}
