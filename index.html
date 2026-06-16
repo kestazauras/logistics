@@ -239,9 +239,12 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
     <script id="engine-core">
         const GROUP_ORDER = [
             "Gypsum diffusers",
-            "LINEO PRO diffusers",
+            "LINEO",
+            "LINEO PRO diffusers (1 slot)",
+            "LINEO PRO diffusers (2 slot)",
             "LINEO PRO CONDI diffusers",
-            "Moulages (PUZZLE lock)",
+            "Moulages 1 slot",
+            "Moulages 2 slot",
             "AERO PRO",
             "Spare parts and accessories (Gypsum and LINEO)",
             "Marketing displays"
@@ -249,9 +252,12 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
 
         const GROUP_COLORS = {
             "Gypsum diffusers": 0xf1f5f9,
-            "LINEO PRO diffusers": 0x0f172a,
+            "LINEO": 0x64748b,
+            "LINEO PRO diffusers (1 slot)": 0x0f172a,
+            "LINEO PRO diffusers (2 slot)": 0x1e293b,
             "LINEO PRO CONDI diffusers": 0x334155,
-            "Moulages (PUZZLE lock)": 0x10b981,
+            "Moulages 1 slot": 0x10b981,
+            "Moulages 2 slot": 0x059669,
             "AERO PRO": 0x8b5cf6,
             "Spare parts and accessories (Gypsum and LINEO)": 0xff671f,
             "Marketing displays": 0xf59e0b
@@ -322,9 +328,12 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
             const raw = (rawCategory || "").trim();
             if (raw.includes("Accessories") || raw.includes("LINEO Spare Parts")) return "Spare parts and accessories (Gypsum and LINEO)";
             if (raw.includes("Gypsum diffusers")) return "Gypsum diffusers";
+            if (raw.includes("LINEO 500")) return "LINEO";
             if (raw.includes("LINEO PRO AC")) return "LINEO PRO CONDI diffusers";
-            if (raw.includes("LINEO PRO ventilation") || raw.includes("LINEO 500")) return "LINEO PRO diffusers";
-            if (raw.includes("Moulages")) return "Moulages (PUZZLE lock)";
+            if (raw.includes("LINEO PRO ventilation - 1 slot")) return "LINEO PRO diffusers (1 slot)";
+            if (raw.includes("LINEO PRO ventilation - 2 slot")) return "LINEO PRO diffusers (2 slot)";
+            if (raw.includes("Moulages 1 slot")) return "Moulages 1 slot";
+            if (raw.includes("Moulages 2 slot")) return "Moulages 2 slot";
             if (raw.includes("AERO-PRO")) return "AERO PRO";
             if (raw.includes("Marketing")) return "Marketing displays";
             return raw || "Spare parts and accessories (Gypsum and LINEO)";
@@ -333,10 +342,59 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
         function priorityForGroup(group) {
             if (group === "Marketing displays") return 1;
             if (group === "Gypsum diffusers") return 2;
-            if (group === "LINEO PRO diffusers" || group === "LINEO PRO CONDI diffusers") return 3;
-            if (group === "Moulages (PUZZLE lock)") return 4;
+            if (group === "LINEO" || group === "LINEO PRO diffusers (1 slot)" || group === "LINEO PRO diffusers (2 slot)" || group === "LINEO PRO CONDI diffusers") return 3;
+            if (group === "Moulages 1 slot" || group === "Moulages 2 slot") return 4;
             if (group === "AERO PRO") return 5;
             return 6;
+        }
+
+        function productSortRank(product) {
+            const name = product.name.toUpperCase();
+            const code = product.code.toUpperCase();
+            if (product.cat === "Gypsum diffusers") {
+                const order = ["RN100", "RN125", "RN150", "RN160", "RN100.CO", "RN125.CO", "KV100", "KV125"];
+                return order.indexOf(code) >= 0 ? order.indexOf(code) : 999;
+            }
+            if (product.cat === "LINEO") {
+                if (name.includes("LINEO-500")) return 0;
+                if (name.includes("LINEO-600")) return 1;
+                if (name.includes("LINEO 600 VERTICAL")) return 2;
+                return 999;
+            }
+            if (product.cat === "LINEO PRO diffusers (1 slot)") {
+                if (name.includes("SINGLE") && name.includes("75")) return 0;
+                if (name.includes("SINGLE") && name.includes("90")) return 1;
+                if (name.includes("PROFILE") && name.includes("75")) return 2;
+                if (name.includes("PROFILE") && name.includes("90")) return 3;
+                if (name.includes("PUZZLE") && name.includes("75")) return 4;
+                if (name.includes("PUZZLE") && name.includes("90")) return 5;
+                return 999;
+            }
+            if (product.cat === "LINEO PRO diffusers (2 slot)") {
+                if (name.includes("PUZZLE") && name.includes("75")) return 0;
+                if (name.includes("PUZZLE") && name.includes("90")) return 1;
+                return 999;
+            }
+            if (product.cat === "LINEO PRO CONDI diffusers") {
+                if (name.includes("125") && !name.includes("2 SLOT")) return 0;
+                if (name.includes("125") && name.includes("2 SLOT")) return 1;
+                if (name.includes("150")) return 2;
+                if (name.includes("160")) return 3;
+                return 999;
+            }
+            if (product.cat === "Moulages 1 slot" || product.cat === "Moulages 2 slot") {
+                if (name.includes("200 MM")) return 0;
+                if (name.includes("500 MM")) return 1;
+                if (name.includes("1050 MM") || name.includes("1000 MM")) return 2;
+                if (name.includes("ROUNDED")) return 3;
+                if (name.includes("RIGHT ANGLE")) return 4;
+                return 999;
+            }
+            if (product.cat === "Spare parts and accessories (Gypsum and LINEO)") {
+                if (code.startsWith("LN") || code.startsWith("LP")) return 100;
+                return 0;
+            }
+            return 999;
         }
 
         function escapeHtml(value) {
@@ -433,6 +491,8 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
             }).filter(Boolean).sort((a, b) => {
                 const groupDiff = GROUP_ORDER.indexOf(a.cat) - GROUP_ORDER.indexOf(b.cat);
                 if (groupDiff !== 0) return groupDiff;
+                const rankDiff = productSortRank(a) - productSortRank(b);
+                if (rankDiff !== 0) return rankDiff;
                 return a.name.localeCompare(b.name);
             });
         }
