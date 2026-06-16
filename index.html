@@ -72,7 +72,7 @@
     </header>
 
     <main class="flex flex-1 overflow-hidden relative">
-        <aside class="w-[50%] flex flex-col z-10 bg-white dark:bg-gray-800 shadow-2xl overflow-hidden shrink-0 border-r border-gray-200 dark:border-gray-700">
+        <aside class="w-[70%] flex flex-col z-10 bg-white dark:bg-gray-800 shadow-2xl overflow-hidden shrink-0 border-r border-gray-200 dark:border-gray-700">
             <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 shrink-0">
                 <h2 class="font-extrabold text-brand-slate dark:text-white uppercase tracking-wider text-sm flex items-center">
                     Product Database
@@ -89,7 +89,7 @@
             <div class="flex-1 overflow-y-auto p-4 space-y-4" id="product-list"></div>
         </aside>
 
-        <section class="flex-1 flex flex-col bg-brand-light dark:bg-gray-900 overflow-hidden relative">
+        <section class="w-[30%] flex flex-col bg-brand-light dark:bg-gray-900 overflow-hidden relative">
             <div class="grid grid-cols-2 gap-4 p-4 shrink-0 z-10 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/50">
                 <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-between">
                     <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Payload breakdown</p>
@@ -265,7 +265,8 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             palletLoadedContainer: {
                 rule: "Pallets inside a pallet-loaded container must fit within the container internal length and width. Pallet plus cargo height must not exceed internal height minus 10 cm.",
                 palletFootprintCm: { width: 100, length: 120, height: 15 },
-                showPalletsInsideContainer: true
+                showPalletsInsideContainer: true,
+                loadingSequence: "Fill one pallet position from bottom to top before loading the next pallet position."
             },
             rondoKvadro100125: {
                 appliesToCodes: ["RN100", "RN125", "KV100", "KV125", "RN100.CO", "RN125.CO"],
@@ -590,7 +591,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         <span class="text-brand-orange">v</span>
                     </summary>
                     <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-b-2xl">
-                        <table class="w-full text-left text-xs min-w-[700px]">
+                        <table class="w-full text-left text-xs min-w-[900px]">
                             <thead class="bg-gray-50 dark:bg-gray-800 text-gray-500 uppercase tracking-wider text-[9px]">
                                 <tr>
                                     <th class="py-2 px-3 w-8 text-center">Info</th>
@@ -613,7 +614,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                                             <span class="font-bold text-gray-700 dark:text-gray-300">${escapeHtml(product.code)}</span><br>
                                             <span class="text-gray-400">HS: ${escapeHtml(product.hs)}</span>
                                         </td>
-                                        <td class="py-2 px-3 font-bold text-brand-slate dark:text-gray-200 truncate max-w-[190px]">${escapeHtml(product.name)}</td>
+                                        <td class="py-2 px-3 font-bold text-brand-slate dark:text-gray-200 min-w-[320px] max-w-[520px] whitespace-normal leading-snug break-words">${escapeHtml(product.name)}</td>
                                         <td class="py-2 px-3 text-center font-mono">${product.packQty}</td>
                                         <td class="py-2 px-3 text-center font-mono text-[10px] text-gray-500">${product.nw.toFixed(2)} / ${product.gw.toFixed(2)}</td>
                                         <td class="py-2 px-3 text-center font-mono text-[10px] text-emerald-600 dark:text-emerald-400" id="ship-${escapeHtml(product.id)}">-</td>
@@ -718,6 +719,30 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             return currentTransport.type === "pallet" && currentTransport.name.toLowerCase().includes("fin pallet");
         }
 
+        function getPalletContainerGrid() {
+            const pallet = PACKAGING_RULES.palletLoadedContainer.palletFootprintCm;
+            const columns = Math.max(1, Math.floor(currentTransport.w / pallet.width));
+            const rows = Math.max(1, Math.floor(currentTransport.l / pallet.length));
+            return { columns, rows, count: columns * rows, pallet };
+        }
+
+        function getPalletSlotCenters() {
+            const grid = getPalletContainerGrid();
+            const startX = -((grid.columns - 1) * grid.pallet.width) / 2;
+            const startZ = -((grid.rows - 1) * grid.pallet.length) / 2;
+            const centers = [];
+            for (let row = 0; row < grid.rows; row++) {
+                for (let column = 0; column < grid.columns; column++) {
+                    centers.push({
+                        index: centers.length,
+                        x: startX + column * grid.pallet.width,
+                        z: startZ + row * grid.pallet.length
+                    });
+                }
+            }
+            return centers;
+        }
+
         function getAllowedFootprint() {
             const overhang = getOverhang();
             const canOverhang = currentTransport.type === "pallet";
@@ -738,7 +763,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         }
 
         function bestBoxesPerLayer(product) {
-            const footprint = getAllowedFootprint();
+            const footprint = currentTransport.isPalletLoadedContainer
+                ? { w: PACKAGING_RULES.palletLoadedContainer.palletFootprintCm.width, l: PACKAGING_RULES.palletLoadedContainer.palletFootprintCm.length }
+                : getAllowedFootprint();
             const normal = Math.floor(footprint.w / product.boxW) * Math.floor(footprint.l / product.boxL);
             const rotated = Math.floor(footprint.w / product.boxL) * Math.floor(footprint.l / product.boxW);
             return Math.max(0, normal, rotated);
@@ -753,7 +780,8 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 : calculatedLayerUnits;
             const layersByHeight = Math.max(1, Math.floor(getUsableProductHeight() / product.boxH));
             const layers = useFinCapacityRules && product.maxLayersFin > 0 ? Math.min(product.maxLayersFin, layersByHeight) : layersByHeight;
-            const capacity = layerUnits * layers;
+            const palletMultiplier = currentTransport.isPalletLoadedContainer ? getPalletContainerGrid().count : 1;
+            const capacity = layerUnits * layers * palletMultiplier;
             if (capacity > 0) return capacity;
             const footprint = getAllowedFootprint();
             const allowedVolume = footprint.w * footprint.l * getUsableProductHeight();
@@ -950,6 +978,10 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         }
 
         function computePlacements(packs) {
+            if (currentTransport.isPalletLoadedContainer) {
+                return computePalletLoadedContainerPlacements(packs);
+            }
+
             const footprint = getAllowedFootprint();
             const baseHeight = getBaseHeight();
             const maxY = currentTransport.maxH;
@@ -1005,6 +1037,111 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             return {
                 placements,
                 productHeight: Math.max(0, y + layerHeight - baseHeight)
+            };
+        }
+
+        function createPlacementState(footprint, baseHeight) {
+            return {
+                x: -footprint.w / 2,
+                z: -footprint.l / 2,
+                y: baseHeight,
+                rowDepth: 0,
+                layerHeight: 0,
+                layerIndex: 0
+            };
+        }
+
+        function tryPlacePackInFootprint(pack, state, footprint, origin, maxY, placements) {
+            const product = pack.product;
+            let { x, z, y, rowDepth, layerHeight, layerIndex } = state;
+            const options = orientationOptions(product, footprint, layerIndex);
+            let selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || options[0];
+
+            if (selected.w > footprint.w || selected.l > footprint.l) return false;
+
+            if (x + selected.w > footprint.w / 2) {
+                x = -footprint.w / 2;
+                z += rowDepth;
+                rowDepth = 0;
+            }
+
+            selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || selected;
+
+            if (z + selected.l > footprint.l / 2) {
+                x = -footprint.w / 2;
+                z = -footprint.l / 2;
+                y += layerHeight;
+                layerHeight = 0;
+                rowDepth = 0;
+                layerIndex++;
+                const layerOptions = orientationOptions(product, footprint, layerIndex);
+                selected = layerOptions.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || layerOptions[0];
+            }
+
+            if (selected.w > footprint.w || selected.l > footprint.l || x + selected.w > footprint.w / 2 || z + selected.l > footprint.l / 2) {
+                return false;
+            }
+
+            if (y + product.boxH > maxY + 0.001) return false;
+
+            placements.push({
+                pack,
+                x: origin.x + x + selected.w / 2,
+                y: y + product.boxH / 2,
+                z: origin.z + z + selected.l / 2,
+                w: selected.w,
+                h: product.boxH,
+                l: selected.l,
+                rotated: selected.rotated,
+                palletSlotIndex: origin.index
+            });
+
+            state.x = x + selected.w;
+            state.z = z;
+            state.y = y;
+            state.rowDepth = Math.max(rowDepth, selected.l);
+            state.layerHeight = Math.max(layerHeight, product.boxH);
+            state.layerIndex = layerIndex;
+            return true;
+        }
+
+        function computePalletLoadedContainerPlacements(packs) {
+            const grid = getPalletContainerGrid();
+            const palletFootprint = { w: grid.pallet.width, l: grid.pallet.length };
+            const slots = getPalletSlotCenters();
+            const baseHeight = getBaseHeight();
+            const maxY = currentTransport.maxH;
+            const placements = [];
+            const states = slots.map(() => createPlacementState(palletFootprint, baseHeight));
+            const slotFractions = slots.map(() => 0);
+            let slotIndex = 0;
+
+            for (const pack of packs) {
+                let placed = false;
+                while (slotIndex < slots.length && !placed) {
+                    const perSlotCapacity = Math.max(pack.pcs, productCapacityUnits(pack.product) / grid.count);
+                    const slotFraction = pack.pcs / perSlotCapacity;
+                    if (slotFractions[slotIndex] + slotFraction > 1.000001) {
+                        slotIndex++;
+                        continue;
+                    }
+                    placed = tryPlacePackInFootprint(pack, states[slotIndex], palletFootprint, slots[slotIndex], maxY, placements);
+                    if (placed) {
+                        slotFractions[slotIndex] += slotFraction;
+                    } else {
+                        slotIndex++;
+                    }
+                }
+                if (!placed) break;
+            }
+
+            const maxProductHeight = placements.reduce((height, placement) => {
+                return Math.max(height, placement.y + placement.h / 2 - baseHeight);
+            }, 0);
+
+            return {
+                placements,
+                productHeight: Math.max(0, maxProductHeight)
             };
         }
 
@@ -1198,15 +1335,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             if (baseHeight <= 0) return;
             if (currentTransport.isPalletLoadedContainer && PACKAGING_RULES.palletLoadedContainer.showPalletsInsideContainer) {
                 const pallet = PACKAGING_RULES.palletLoadedContainer.palletFootprintCm;
-                const columns = Math.max(1, Math.floor(currentTransport.w / pallet.width));
-                const rows = Math.max(1, Math.floor(currentTransport.l / pallet.length));
-                const startX = -((columns - 1) * pallet.width) / 2;
-                const startZ = -((rows - 1) * pallet.length) / 2;
-                for (let row = 0; row < rows; row++) {
-                    for (let column = 0; column < columns; column++) {
-                        addPalletMesh(pallet.width, baseHeight, pallet.length, startX + column * pallet.width, startZ + row * pallet.length);
-                    }
-                }
+                getPalletSlotCenters().forEach(slot => {
+                    addPalletMesh(pallet.width, baseHeight, pallet.length, slot.x, slot.z);
+                });
                 return;
             }
             addPalletMesh(currentTransport.w, baseHeight, currentTransport.l, 0, 0);
@@ -1268,8 +1399,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 interactiveBoxes.push(mesh);
             });
 
-            const distance = Math.max(footprint.w, footprint.l, maxH) * 1.55;
-            camera.position.set(distance, distance * 0.82, distance);
+            const maxDimension = Math.max(footprint.w, footprint.l, maxH);
+            const distance = maxDimension * (currentTransport.type === "container" ? 0.9 : 1.35);
+            camera.far = Math.max(3000, distance * 4);
+            camera.updateProjectionMatrix();
+            camera.position.set(distance, distance * 0.75, distance);
             controls.target.set(0, maxH / 3, 0);
         }
 
