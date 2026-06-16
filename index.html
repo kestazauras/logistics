@@ -160,9 +160,11 @@ EUR pallet low (1.95m),20,15,80,120,,,,195
 40HQ Container (Floor),3900,,,,2390,2352,12030,229`;
     </script>
 
-    <!-- Editable product database block. The parser accepts this CSV shape and TSV pasted from Google Sheets. -->
-    <script id="product-config">
-        const RAW_PRODUCTS_CSV = `Category,Code,EAN code,HS code,Name,"Gross weight, kg","Net weight, kg","Height, cm","Width, cm","Length, cm","Transport box, qty","Transport box Height, cm","Transport box Length, cm","Transport box width, cm",Max Units in FIN pallet,Max Units in 1 Layer FIN pallet,Max Number of Layers in FIN pallet
+    <!-- ====================================================================== -->
+    <!-- PRODUCT DATABASE BLOCK                                                 -->
+    <!-- Paste the full product CSV/TSV here. Keep the first row as column names. -->
+    <!-- ====================================================================== -->
+    <script id="product-database-csv" type="text/plain">Category,Code,EAN code,HS code,Name,"Gross weight, kg","Net weight, kg","Height, cm","Width, cm","Length, cm","Transport box, qty","Transport box Height, cm","Transport box Length, cm","Transport box width, cm",Max Units in FIN pallet,Max Units in 1 Layer FIN pallet,Max Number of Layers in FIN pallet
 Gypsum diffusers,RN100,4779051540112,841490,RONDO-100,3.1,2.5,15,32,32,4,32,64,32,168,24,7
 Gypsum diffusers,RN125,4779051540105,841490,RONDO-125,3.3,2.5,15,32,32,4,32,64,32,168,24,7
 Gypsum diffusers,RN150,4770051540327,841490,RONDO-150,4.3,3.4,17,37,37,2,33,37,33,126,18,7
@@ -221,7 +223,12 @@ LINEO Spare Parts,LP.P006,4779051541233,841490,Plastic connector ERGOVENT CNC160
 LINEO Spare Parts,LP.P007,4770061541249,841490,"Plastic connector ERGOVENT CNC160 / for 160 mm (6"") duct",,,,,,,,,,,,
 Marketing ,,,841490,Demo Box,5,5,12,34,41,1,13,35,42,228,12,19
 Marketing ,,,841490,Traffic lights,30,30,160,40,52,1,162,42,54,4,4,1
-Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
+Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
+    </script>
+
+    <!-- Product database loader. Calculator/3D code reads from the editable block above. -->
+    <script id="product-config">
+        const RAW_PRODUCTS_CSV = document.getElementById("product-database-csv").textContent.trim();
     </script>
 
     <!-- Editable order export template block. Keep these labels if the customer XLSX template changes. -->
