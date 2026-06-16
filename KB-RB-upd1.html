@@ -456,7 +456,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
                             ${escapeHtml(group)}
                             <span id="group-total-${index}" class="text-[9px] font-mono bg-white dark:bg-gray-700 text-brand-slate dark:text-gray-300 px-2 py-0.5 rounded-full shadow-sm ml-2 border border-gray-200 dark:border-gray-600">0 pcs</span>
                         </span>
-                        <span class="text-brand-orange">▼</span>
+                        <span class="text-brand-orange">v</span>
                     </summary>
                     <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-b-2xl">
                         <table class="w-full text-left text-xs min-w-[700px]">
@@ -822,9 +822,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
 
             packs.forEach(pack => {
                 const product = pack.product;
-                const options = layerIndex % 2 === 0
-                    ? [{ w: product.boxW, l: product.boxL, rotated: false }, { w: product.boxL, l: product.boxW, rotated: true }]
-                    : [{ w: product.boxL, l: product.boxW, rotated: true }, { w: product.boxW, l: product.boxL, rotated: false }];
+                const options = orientationOptions(product, footprint, layerIndex);
                 let selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || options[0];
 
                 if (x + selected.w > footprint.w / 2) {
@@ -842,9 +840,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
                     layerHeight = 0;
                     rowDepth = 0;
                     layerIndex++;
-                    const layerOptions = layerIndex % 2 === 0
-                        ? [{ w: product.boxW, l: product.boxL, rotated: false }, { w: product.boxL, l: product.boxW, rotated: true }]
-                        : [{ w: product.boxL, l: product.boxW, rotated: true }, { w: product.boxW, l: product.boxL, rotated: false }];
+                    const layerOptions = orientationOptions(product, footprint, layerIndex);
                     selected = layerOptions.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || layerOptions[0];
                 }
 
@@ -869,6 +865,16 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
                 placements,
                 productHeight: Math.max(0, y + layerHeight - baseHeight)
             };
+        }
+
+        function orientationOptions(product, footprint, layerIndex) {
+            const normal = { w: product.boxW, l: product.boxL, rotated: false };
+            const rotated = { w: product.boxL, l: product.boxW, rotated: true };
+            const normalCapacity = Math.floor(footprint.w / normal.w) * Math.floor(footprint.l / normal.l);
+            const rotatedCapacity = Math.floor(footprint.w / rotated.w) * Math.floor(footprint.l / rotated.l);
+            if (rotatedCapacity > normalCapacity) return [rotated, normal];
+            if (normalCapacity > rotatedCapacity) return [normal, rotated];
+            return layerIndex % 2 === 0 ? [normal, rotated] : [rotated, normal];
         }
 
         function generateOrder() {
