@@ -236,6 +236,46 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
         ];
     </script>
 
+    <!-- ====================================================================== -->
+    <!-- PACKAGING RULES BLOCK                                                  -->
+    <!-- These rules are the source of truth for calculator and 3D model checks. -->
+    <!-- ====================================================================== -->
+    <script id="packaging-rules-config">
+        const PACKAGING_RULES = {
+            overhang: {
+                rule: "Loads are centered on the pallet. Allowed overhang is total extra footprint, split equally on every side.",
+                example: "10 cm overhang means +5 cm left, +5 cm right, +5 cm front, +5 cm back.",
+                splitAcrossSides: true,
+                floorLoadedContainerOverhangAllowed: false
+            },
+            rondoKvadro100125: {
+                appliesToCodes: ["RN100", "RN125", "KV100", "KV125", "RN100.CO", "RN125.CO"],
+                layerPattern: [
+                    "Layer A: 4 boxes along the left pallet length using 32+32+32+32 cm and 2 boxes along the right pallet length using 62+62 cm.",
+                    "Layer B: mirrored for stability, 4 boxes on the right and 2 boxes on the left."
+                ],
+                alternatingLayers: true
+            },
+            floorLoadedContainer: {
+                rule: "No pallet and no overhang. Container internal length, width and height are the hard limits.",
+                example: "40HQ floor-loaded container should be evaluated by internal dimensions only for RONDO/KVADRO 100/125 capacity."
+            },
+            lineoLayering: {
+                rule: "If LINEO models fit by pallet length and width, alternate layers by 90 degrees.",
+                alternatingLayers: true
+            },
+            placementPriority: [
+                { rank: 1, label: "Metal stand and traffic light stand", rule: "Always on the bottom. Other items can be placed around them, never below them." },
+                { rank: 2, label: "Gypsum diffusers" },
+                { rank: 3, label: "LINEO PRO diffusers and LINEO diffusers" },
+                { rank: 4, label: "AERO PRO products" },
+                { rank: 5, label: "Moulages" },
+                { rank: 6, label: "Display boxes" },
+                { rank: 7, label: "Spare parts and accessories" }
+            ]
+        };
+    </script>
+
     <script id="engine-core">
         const GROUP_ORDER = [
             "Gypsum diffusers",
@@ -340,12 +380,18 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
         }
 
         function priorityForGroup(group) {
-            if (group === "Marketing displays") return 1;
             if (group === "Gypsum diffusers") return 2;
             if (group === "LINEO" || group === "LINEO PRO diffusers (1 slot)" || group === "LINEO PRO diffusers (2 slot)" || group === "LINEO PRO CONDI diffusers") return 3;
-            if (group === "Moulages 1 slot" || group === "Moulages 2 slot") return 4;
-            if (group === "AERO PRO") return 5;
-            return 6;
+            if (group === "AERO PRO") return 4;
+            if (group === "Moulages 1 slot" || group === "Moulages 2 slot") return 5;
+            if (group === "Marketing displays") return 6;
+            return 7;
+        }
+
+        function productPlacementPriority(product) {
+            const name = product.name.toUpperCase();
+            if (name.includes("METAL STAND") || name.includes("TRAFFIC LIGHT")) return 1;
+            return priorityForGroup(product.cat);
         }
 
         function productSortRank(product) {
@@ -469,7 +515,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
                 );
                 const code = (row[1] || `MKTG-${index + 1}`).trim();
                 const packQty = Math.max(1, parseInteger(row[10], 1));
-                return {
+                const product = {
                     id: `${code}-${index}`,
                     code,
                     ean: row[2] || "",
@@ -485,9 +531,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
                     maxFin: parseInteger(row[14], 0),
                     layerUnitsFin: parseInteger(row[15], 0),
                     maxLayersFin: parseInteger(row[16], 0),
-                    priority: priorityForGroup(group),
+                    priority: 999,
                     color: GROUP_COLORS[group] || 0xff671f
                 };
+                product.priority = productPlacementPriority(product);
+                return product;
             }).filter(Boolean).sort((a, b) => {
                 const groupDiff = GROUP_ORDER.indexOf(a.cat) - GROUP_ORDER.indexOf(b.cat);
                 if (groupDiff !== 0) return groupDiff;
@@ -639,9 +687,18 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
             return Math.max(0, parseNumber(document.getElementById("overhang-input").value, 0));
         }
 
+        function getOverhangPerSide() {
+            return PACKAGING_RULES.overhang.splitAcrossSides ? getOverhang() / 2 : getOverhang();
+        }
+
+        function isFinPalletTransport() {
+            return currentTransport.type === "pallet" && currentTransport.name.toLowerCase().includes("fin pallet");
+        }
+
         function getAllowedFootprint() {
             const overhang = getOverhang();
-            const canOverhang = currentTransport.type === "pallet" && !currentTransport.isFloorLoaded;
+            const canOverhang = currentTransport.type === "pallet"
+                && !(currentTransport.isFloorLoaded && !PACKAGING_RULES.overhang.floorLoadedContainerOverhangAllowed);
             return {
                 w: currentTransport.w + (canOverhang ? overhang : 0),
                 l: currentTransport.l + (canOverhang ? overhang : 0)
@@ -667,11 +724,12 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
         function productCapacityUnits(product) {
             const boxesByFootprint = bestBoxesPerLayer(product);
             const calculatedLayerUnits = boxesByFootprint * product.packQty;
-            const layerUnits = product.layerUnitsFin > 0
+            const useFinCapacityRules = isFinPalletTransport();
+            const layerUnits = useFinCapacityRules && product.layerUnitsFin > 0
                 ? Math.min(product.layerUnitsFin, calculatedLayerUnits || product.layerUnitsFin)
                 : calculatedLayerUnits;
             const layersByHeight = Math.max(1, Math.floor(getUsableProductHeight() / product.boxH));
-            const layers = product.maxLayersFin > 0 ? Math.min(product.maxLayersFin, layersByHeight) : layersByHeight;
+            const layers = useFinCapacityRules && product.maxLayersFin > 0 ? Math.min(product.maxLayersFin, layersByHeight) : layersByHeight;
             const capacity = layerUnits * layers;
             if (capacity > 0) return capacity;
             const footprint = getAllowedFootprint();
