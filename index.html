@@ -320,12 +320,12 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
 
         function normalizeGroup(rawCategory) {
             const raw = (rawCategory || "").trim();
+            if (raw.includes("Accessories") || raw.includes("LINEO Spare Parts")) return "Spare parts and accessories (Gypsum and LINEO)";
             if (raw.includes("Gypsum diffusers")) return "Gypsum diffusers";
             if (raw.includes("LINEO PRO AC")) return "LINEO PRO CONDI diffusers";
             if (raw.includes("LINEO PRO ventilation") || raw.includes("LINEO 500")) return "LINEO PRO diffusers";
             if (raw.includes("Moulages")) return "Moulages (PUZZLE lock)";
             if (raw.includes("AERO-PRO")) return "AERO PRO";
-            if (raw.includes("Accessories") || raw.includes("LINEO Spare Parts")) return "Spare parts and accessories (Gypsum and LINEO)";
             if (raw.includes("Marketing")) return "Marketing displays";
             return raw || "Spare parts and accessories (Gypsum and LINEO)";
         }
