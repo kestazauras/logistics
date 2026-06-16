@@ -61,7 +61,7 @@
             <div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center font-black text-white text-2xl shadow-sm">E</div>
             <div>
                 <h1 class="font-bold text-xl leading-tight text-brand-slate dark:text-white tracking-tight">ERGOVENT - loading optimizer</h1>
-                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">v_13</span></p>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">v_14</span></p>
             </div>
         </div>
         <div class="flex gap-4 items-center">
@@ -334,6 +334,16 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     SPARE_PARTS: 6,
                     DEMO_BOX: 7
                 };
+                this.MAX_CAPACITIES = {
+                    RN100: { FIN: 168, "20HQ_FLOOR": 1764 },
+                    RN125: { FIN: 168, "20HQ_FLOOR": 1764 },
+                    KV100: { FIN: 168, "20HQ_FLOOR": 1764 },
+                    KV125: { FIN: 168, "20HQ_FLOOR": 1764 },
+                    "RN100.CO": { FIN: 168, "20HQ_FLOOR": 1764 },
+                    "RN125.CO": { FIN: 168, "20HQ_FLOOR": 1764 },
+                    RN150: { FIN: 126 },
+                    RN160: { FIN: 126 }
+                };
             }
 
             packForCurrentTransport(packs) {
@@ -370,6 +380,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     h: pack.product.boxH,
                     weight: pack.gross || pack.product.gw * pack.product.packQty,
                     priority: this.getItemPriority(pack.product.code, pack.product.name),
+                    color: pack.product.color,
                     product: pack.product,
                     pack
                 }));
@@ -421,8 +432,10 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 remainingItems = remainingItems.filter(item => item.priority !== this.PRIORITY.STANDS);
 
                 stands.forEach((stand, index) => {
-                    const w = Math.min(stand.w, config.width);
-                    const l = Math.min(stand.l, config.length);
+                    const isMetalStand = stand.name.toUpperCase().includes("METAL STAND");
+                    const w = Math.min(isMetalStand ? Math.min(stand.w, stand.l) : stand.w, config.width);
+                    const l = Math.min(isMetalStand ? Math.max(stand.w, stand.l) : stand.l, config.length);
+                    if (config.baseHeight + stand.h > config.maxY + 0.001) return;
                     const placed = {
                         ...stand,
                         x: (config.width - w) / 2,
@@ -439,7 +452,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 });
 
                 const brickItems = remainingItems.filter(item => item.priority === this.PRIORITY.RONDO_KV100_125 && Math.round(item.w) === 32 && Math.round(item.l) === 64 && Math.round(item.h) === 32);
-                if (config.allowBricklaying && brickItems.length && !obstacles.length) {
+                if (config.allowBricklaying && brickItems.length && !obstacles.length && config.width >= 96 && config.length >= 128) {
                     const brickIds = new Set(brickItems.map(item => item.id));
                     remainingItems = remainingItems.filter(item => !brickIds.has(item.id));
                     const bricklaid = this.generateBricklaying(brickItems, Math.floor((config.maxY - config.baseHeight) / 32), config.width, config.length);
@@ -452,15 +465,15 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     return (b.w * b.l * b.h) - (a.w * a.l * a.h);
                 });
 
-                let extremePoints = [{ x: 0, z: 0, y: 0 }];
+                let extremePoints = this.seedExtremePoints(packedItems, config.width, config.length, config.maxY - config.baseHeight);
                 for (const item of remainingItems) {
                     let best = null;
                     const rotations = item.priority === this.PRIORITY.DEMO_BOX || item.priority === this.PRIORITY.STANDS
                         ? [[item.w, item.l, item.h]]
-                        : this.getRotations(item.w, item.l, item.h);
+                        : this.getRotations(item.w, item.l, item.h, item.sku);
                     for (const point of extremePoints) {
                         for (const rotation of rotations) {
-                            const candidate = { x: point.x, z: point.z, y: point.y, w: rotation[0], l: rotation[1], h: rotation[2], priority: item.priority };
+                            const candidate = { x: point.x, z: point.z, y: point.y, w: rotation[0], l: rotation[1], h: rotation[2], priority: item.priority, sku: item.sku };
                             if (!this.isValidPlacement(candidate, config.width, config.length, config.maxY - config.baseHeight, packedItems, obstacles)) continue;
                             const score = candidate.y * 100000 + Math.abs(candidate.x + candidate.w / 2 - config.width / 2) + Math.abs(candidate.z + candidate.l / 2 - config.length / 2);
                             if (!best || score < best.score) best = { score, candidate, item };
@@ -492,15 +505,15 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 let extremePoints = [{ x: 0, z: 0, y: 0 }];
                 for (const item of sorted) {
                     let best = null;
-                    const rotations = item.priority === this.PRIORITY.DEMO_BOX ? [[item.w, item.l, item.h]] : this.getFlatRotations(item.w, item.l, item.h);
+                    const rotations = item.priority === this.PRIORITY.DEMO_BOX ? [[item.w, item.l, item.h]] : this.getFlatRotations(item.w, item.l, item.h, item.sku);
                     for (const rotation of rotations) {
                         const centered = { x: (config.width - rotation[0]) / 2, z: 0, y: 0 };
                         const candidates = [centered, ...extremePoints];
                         for (const point of candidates) {
-                            const candidate = { x: point.x, z: point.z, y: point.y, w: rotation[0], l: rotation[1], h: rotation[2], priority: item.priority };
+                            const candidate = { x: point.x, z: point.z, y: point.y, w: rotation[0], l: rotation[1], h: rotation[2], priority: item.priority, sku: item.sku };
                             if (!this.isValidPlacement(candidate, config.width, config.length, config.height, packedItems, [])) continue;
                             const centerDist = Math.abs(candidate.x + candidate.w / 2 - config.width / 2);
-                            const score = candidate.z * 1000000 + centerDist * 1000 - candidate.y;
+                            const score = candidate.z * 10000000 + candidate.y * 100000 + centerDist;
                             if (!best || score < best.score) best = { score, candidate, item };
                         }
                     }
@@ -512,6 +525,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     extremePoints.push({ x: placed.x, z: placed.z, y: placed.y + placed.h });
                     extremePoints = this.filterPoints(extremePoints, config.width, config.length, config.height);
                 }
+
                 const placements = packedItems.map(item => ({
                     pack: item.pack,
                     product: item.product,
@@ -546,6 +560,16 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         packedItems.push(candidate);
                     }
                 }
+            }
+
+            seedExtremePoints(packedItems, maxWidth, maxLength, maxHeight) {
+                const points = [{ x: 0, z: 0, y: 0 }];
+                packedItems.forEach(item => {
+                    points.push({ x: item.x + item.w, z: item.z, y: item.y });
+                    points.push({ x: item.x, z: item.z + item.l, y: item.y });
+                    points.push({ x: item.x, z: item.z, y: item.y + item.h });
+                });
+                return this.filterPoints(points, maxWidth, maxLength, maxHeight);
             }
 
             toPlacement(item, config) {
@@ -589,6 +613,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 if (candidate.x < 0 || candidate.x + candidate.w > packWidth) return false;
                 if (candidate.z < 0 || candidate.z + candidate.l > packLength) return false;
                 if (candidate.y < 0 || candidate.y + candidate.h > packHeight) return false;
+                if ((candidate.sku || "").startsWith("LN") || (candidate.sku || "").startsWith("LP")) {
+                    for (const item of packedItems) {
+                        if (item.sku === candidate.sku && Math.abs(item.x - candidate.x) < 5 && Math.abs(item.z - candidate.z) < 5) return false;
+                    }
+                }
                 if (candidate.priority === this.PRIORITY.DEMO_BOX) {
                     const maxNonDemoY = packedItems.reduce((height, item) => item.priority === this.PRIORITY.DEMO_BOX ? height : Math.max(height, item.y + item.h), 0);
                     if (candidate.y < maxNonDemoY - 0.01) return false;
@@ -599,7 +628,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     const zOverlap = Math.max(0, Math.min(candidate.z + candidate.l, obstacle.z + obstacle.l) - Math.max(candidate.z, obstacle.z));
                     if (xOverlap > 0 && zOverlap > 0 && candidate.y + candidate.h > obstacle.y) return false;
                 }
-                if (candidate.y > 0 && this.getBottomSupportRatio(candidate, packedItems) < (2 / 3)) return false;
+                if (candidate.y > 0) {
+                    const longFlat = (candidate.sku || "").startsWith("LN") || (candidate.sku || "").startsWith("LP") || candidate.priority === this.PRIORITY.DEMO_BOX;
+                    const requiredSupport = longFlat ? 0.5 : (2 / 3);
+                    if (this.getBottomSupportRatio(candidate, packedItems) < requiredSupport) return false;
+                }
                 return true;
             }
 
@@ -607,7 +640,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 const bottomArea = box.w * box.l;
                 let supportedArea = 0;
                 for (const item of packedItems) {
-                    if (Math.abs((item.y + item.h) - box.y) < 0.01) {
+                    if (Math.abs((item.y + item.h) - box.y) < 0.1) {
                         const ix = Math.max(0, Math.min(box.x + box.w, item.x + item.w) - Math.max(box.x, item.x));
                         const iz = Math.max(0, Math.min(box.z + box.l, item.z + item.l) - Math.max(box.z, item.z));
                         supportedArea += ix * iz;
@@ -619,7 +652,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             centerLayers(packedItems, totalWidth, totalLength, obstacles = []) {
                 const groups = {};
                 for (const item of packedItems) {
-                    if (item.priority === this.PRIORITY.STANDS || item.brick) continue;
+                    if (item.priority === this.PRIORITY.STANDS) continue;
                     const key = Math.round(item.y * 100) / 100;
                     groups[key] = groups[key] || [];
                     groups[key].push(item);
@@ -654,16 +687,22 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 return a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.l && a.z + a.l > b.z && a.y < b.y + b.h && a.y + a.h > b.y;
             }
 
-            getFlatRotations(w, l, h) {
+            getFlatRotations(w, l, h, sku = "") {
                 const variants = [[w, l, h], [l, w, h]];
                 const seen = new Set();
                 return variants.filter(rotation => { const key = rotation.join(','); if (seen.has(key)) return false; seen.add(key); return true; });
             }
 
-            getRotations(w, l, h) {
+            getRotations(w, l, h, sku = "") {
                 const variants = [[w, l, h], [l, w, h], [w, h, l], [l, h, w], [h, w, l], [h, l, w]];
                 const seen = new Set();
-                return variants.filter(rotation => { const key = rotation.join(','); if (seen.has(key)) return false; seen.add(key); return true; });
+                let filtered = variants;
+                const s = (sku || "").toUpperCase();
+                if (s.startsWith("LN") || (s.startsWith("LP") && !s.startsWith("LPM") && !s.startsWith("LP.P") && !s.startsWith("LPB"))) {
+                    filtered = variants.filter(rotation => rotation[2] <= rotation[0] && rotation[2] <= rotation[1]);
+                }
+                filtered.sort((a, b) => a[2] - b[2] || (b[0] * b[1]) - (a[0] * a[1]));
+                return filtered.filter(rotation => { const key = rotation.join(','); if (seen.has(key)) return false; seen.add(key); return true; });
             }
 
             centeredColumnPositions(containerWidth, itemWidth) {
@@ -711,14 +750,15 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         };
 
         const PRODUCT_PALETTES = {
-            gypsum: [0xffffff, 0xf8fafc, 0xf1f5f9, 0xe2e8f0, 0xcbd5e1, 0x94a3b8, 0x64748b, 0x475569],
-            lineo: [0xffedd5, 0xfed7aa, 0xfdba74],
-            lineoPro: [0xffedd5, 0xfed7aa, 0xfdba74, 0xfb923c, 0xf97316, 0xea580c, 0xc2410c, 0x9a3412],
-            condi: [0xdbeafe, 0xbfdbfe, 0x93c5fd, 0x60a5fa],
+            gypsum: [0x1e40af, 0xea580c, 0x0d9488, 0xbe185d, 0x059669, 0x7c3aed, 0x475569, 0xca8a04],
+            lineo: [0x10b981, 0x34d399, 0x059669],
+            lineoPro: [0x06b6d4, 0x0891b2, 0x0e7490, 0x155e75, 0x67e8f9, 0x22d3ee, 0x0284c7, 0x0369a1],
+            condi: [0xdbeafe, 0x93c5fd, 0x3b82f6, 0x1d4ed8],
             moulages: [0xbbf7d0, 0x86efac, 0x4ade80, 0x22c55e, 0x16a34a],
             aero: [0xddd6fe, 0xc4b5fd],
             spare: [0xfce7f3, 0xfbcfe8, 0xf9a8d4, 0xf472b6],
-            display: [0x111827]
+            display: [0x111827, 0xf59e0b],
+            stand: [0x78350f]
         };
 
         let logisticsData = [];
@@ -821,6 +861,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         }
 
         function productVisualColor(product) {
+            if (isStandProduct(product)) return paletteColor("stand", 0);
             if (product.cat === "Gypsum diffusers") return paletteColor("gypsum", productSortRank(product));
             if (product.cat === "LINEO (75mm)") return paletteColor("lineo", productSortRank(product));
             if (product.cat === "LINEO PRO ventilation diffusers") return paletteColor("lineoPro", productSortRank(product) % 100);
@@ -828,7 +869,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             if (product.cat === "Moulages") return paletteColor("moulages", productSortRank(product) % 100);
             if (product.cat === "AERO PRO") return paletteColor("aero", productSortRank(product));
             if (product.cat === "Spare parts and accessories (Gypsum and LINEO)") return paletteColor("spare", productSortRank(product) % 4);
-            if (product.cat === "Marketing displays") return paletteColor("display", 0);
+            if (product.cat === "Marketing displays") return paletteColor("display", product.name.toUpperCase().includes("DEMO") ? 1 : 0);
             return GROUP_COLORS[product.cat] || 0xff671f;
         }
 
@@ -1273,6 +1314,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         }
 
         function productCapacityUnits(product) {
+            const skuCapacity = ERGOVENT_PACKING_ENGINE.MAX_CAPACITIES?.[product.code];
+            if (skuCapacity) {
+                if (currentTransport.isFloorLoaded && currentTransport.name.includes("20HQ") && skuCapacity["20HQ_FLOOR"]) return skuCapacity["20HQ_FLOOR"];
+                if (isFinPalletTransport() && skuCapacity.FIN) return skuCapacity.FIN;
+            }
             const boxesByFootprint = bestBoxesPerLayer(product);
             const calculatedLayerUnits = boxesByFootprint * product.packQty;
             const useFinCapacityRules = isFinPalletTransport();
