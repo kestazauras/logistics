@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERGOVENT Load Optimizer</title>
+    <title>ERGOVENT - loading optimizer</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -60,8 +60,8 @@
         <div class="flex items-center gap-4">
             <div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center font-black text-white text-2xl shadow-sm">E</div>
             <div>
-                <h1 class="font-bold text-xl leading-tight text-brand-slate dark:text-white tracking-tight">ERGOVENT Optimizer</h1>
-                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">KB-RB-upd1</span></p>
+                <h1 class="font-bold text-xl leading-tight text-brand-slate dark:text-white tracking-tight">ERGOVENT - loading optimizer</h1>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">v_12</span></p>
             </div>
         </div>
         <div class="flex gap-4 items-center">
@@ -124,7 +124,7 @@
                     <div class="flex flex-col items-center justify-center">
                         <div class="w-16 h-16 relative"><canvas id="efficiency-chart"></canvas></div>
                         <p class="text-[9px] font-bold text-gray-500 uppercase tracking-wider text-center mt-1">
-                            Vol efficiency: <span class="text-xs font-black text-green-600 dark:text-green-400" id="kpi-efficiency">0%</span>
+                            Order efficiency: <span class="text-xs font-black text-green-600 dark:text-green-400" id="kpi-efficiency">0%</span>
                         </p>
                     </div>
                 </div>
@@ -142,9 +142,9 @@
 
                 <div class="absolute top-4 left-4 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-xl z-20 text-xs pointer-events-none">
                     <p class="font-bold text-[10px] uppercase text-brand-orange mb-1">Active space dimensions</p>
-                    <p class="text-gray-700 dark:text-gray-200">Load footprint: <span id="dim-footprint" class="font-mono font-bold">-</span></p>
+                    <p class="text-gray-700 dark:text-gray-200">Total W x L: <span id="dim-footprint" class="font-mono font-bold">-</span></p>
                     <p class="text-gray-700 dark:text-gray-200 mt-1">Max height cap: <span id="dim-maxheight" class="font-mono font-bold">-</span></p>
-                    <p class="text-gray-700 dark:text-gray-200 mt-1">Current load height: <span id="dim-currheight" class="font-mono font-bold">-</span></p>
+                    <p class="text-gray-700 dark:text-gray-200 mt-1">TOTAL H x W x L: <span id="dim-currheight" class="font-mono font-bold">-</span></p>
                 </div>
 
                 <div id="overpack-warning" class="hidden absolute top-4 right-4 bg-red-100 dark:bg-red-950 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 rounded-xl shadow-lg text-xs font-bold z-20 flex items-center gap-2">
@@ -196,10 +196,10 @@ LINEO PRO ventilation - 1 slot,LP90.120.201,4779051540017,841490,ERGOVENT LINEO-
 LINEO PRO ventilation - 1 slot,LP90.120.301,4779051540824,841490,ERGOVENT LINEO PRO PUZZLE connected (90mm),7,6.25,24,124,19,1,24,124,19,60,6,10
 LINEO PRO ventilation - 2 slot,LP75.220.301,4779051540884,841490,ERGOVENT LINEO PRO PUZZLE connected (75 mm / 2 slots),7,6.25,19,124,24,1,19,124,24,60,6,10
 LINEO PRO ventilation - 2 slot,LP90.220.301,4779051541041,841490,ERGOVENT LINEO PRO PUZZLE connected (90mm / 2 slots),7,6.25,24,124,19,1,24,124,19,60,6,10
-LINEO PRO AC,LP125.120301,4779051544,841490,ERGOVENT LINEO PRO CONDI-125 connected,10.12,8.26,21,124,24,1,21,124,24,60,6,10
-LINEO PRO AC,LP125.220301,477905154189,841490,ERGOVENT LINEO PRO CONDI-125 connected (2 slots),10.12,8.26,21,124,24,1,21,124,24,60,6,10
-LINEO PRO AC,LP150.320301,4779051540952,841490,ERGOVENT LINEO-PRO CONDI-150 connected (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
-LINEO PRO AC,LP160.320301,4779051540891,841490,ERGOVENT LINEO PRO CONDI-160 (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
+LINEO PRO AC,LP125.120301,4779051544,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -2x 125mm (1 slot),10.12,8.26,21,124,24,1,21,124,24,60,6,10
+LINEO PRO AC,LP125.220301,477905154189,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -2x 125mm (2 slots),10.12,8.26,21,124,24,1,21,124,24,60,6,10
+LINEO PRO AC,LP150.320301,4779051540952,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -3x 150mm (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
+LINEO PRO AC,LP160.320301,4779051540891,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -3x 160mm (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
 LINEO 500 / 600,LN75.120.101,4779051540402,841490,ERGOVENT LINEO-500,3.4,2.96,18,54,23,1,18,54,23,60,6,10
 LINEO 500 / 600,LN75.120.201,4779051540426,841490,ERGOVENT LINEO 600 HORIZONTAL connection,3.54,2.98,17,64,24,1,17,64,24,60,6,10
 LINEO 500 / 600,LN75.120.101,4779051540433,841490,ERGOVENT LINEO 600 VERTICAL connection,3.54,2.54,22,64,24,1,22,64,24,60,6,10
@@ -319,9 +319,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
     <script id="engine-core">
         const GROUP_ORDER = [
             "Gypsum diffusers",
-            "LINEO",
-            "LINEO PRO ventilation",
-            "LINEO PRO CONDI diffusers",
+            "LINEO (75mm)",
+            "LINEO PRO ventilation diffusers",
+            "LINEO PRO CONDI diffusers for A/C & ventilation",
             "Moulages",
             "AERO PRO",
             "Spare parts and accessories (Gypsum and LINEO)",
@@ -330,13 +330,24 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         const GROUP_COLORS = {
             "Gypsum diffusers": 0xf1f5f9,
-            "LINEO": 0x64748b,
-            "LINEO PRO ventilation": 0x0f172a,
-            "LINEO PRO CONDI diffusers": 0x334155,
+            "LINEO (75mm)": 0x64748b,
+            "LINEO PRO ventilation diffusers": 0x0f172a,
+            "LINEO PRO CONDI diffusers for A/C & ventilation": 0x334155,
             "Moulages": 0x10b981,
             "AERO PRO": 0x8b5cf6,
             "Spare parts and accessories (Gypsum and LINEO)": 0xff671f,
             "Marketing displays": 0xf59e0b
+        };
+
+        const PRODUCT_PALETTES = {
+            gypsum: [0xffffff, 0xf8fafc, 0xf1f5f9, 0xe2e8f0, 0xcbd5e1, 0x94a3b8, 0x64748b, 0x475569],
+            lineo: [0xffedd5, 0xfed7aa, 0xfdba74],
+            lineoPro: [0xffedd5, 0xfed7aa, 0xfdba74, 0xfb923c, 0xf97316, 0xea580c, 0xc2410c, 0x9a3412],
+            condi: [0xdbeafe, 0xbfdbfe, 0x93c5fd, 0x60a5fa],
+            moulages: [0xbbf7d0, 0x86efac, 0x4ade80, 0x22c55e, 0x16a34a],
+            aero: [0xddd6fe, 0xc4b5fd],
+            spare: [0xfce7f3, 0xfbcfe8, 0xf9a8d4, 0xf472b6],
+            display: [0x111827]
         };
 
         let logisticsData = [];
@@ -404,9 +415,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             const raw = (rawCategory || "").trim();
             if (raw.includes("Accessories") || raw.includes("LINEO Spare Parts")) return "Spare parts and accessories (Gypsum and LINEO)";
             if (raw.includes("Gypsum diffusers")) return "Gypsum diffusers";
-            if (raw.includes("LINEO 500")) return "LINEO";
-            if (raw.includes("LINEO PRO AC")) return "LINEO PRO CONDI diffusers";
-            if (raw.includes("LINEO PRO ventilation")) return "LINEO PRO ventilation";
+            if (raw.includes("LINEO 500")) return "LINEO (75mm)";
+            if (raw.includes("LINEO PRO AC")) return "LINEO PRO CONDI diffusers for A/C & ventilation";
+            if (raw.includes("LINEO PRO ventilation")) return "LINEO PRO ventilation diffusers";
             if (raw.includes("Moulages")) return "Moulages";
             if (raw.includes("AERO-PRO")) return "AERO PRO";
             if (raw.includes("Marketing")) return "Marketing displays";
@@ -415,7 +426,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function priorityForGroup(group) {
             if (group === "Gypsum diffusers") return 2;
-            if (group === "LINEO" || group === "LINEO PRO ventilation" || group === "LINEO PRO CONDI diffusers") return 3;
+            if (group === "LINEO (75mm)" || group === "LINEO PRO ventilation diffusers" || group === "LINEO PRO CONDI diffusers for A/C & ventilation") return 3;
             if (group === "AERO PRO") return 4;
             if (group === "Moulages") return 5;
             if (group === "Marketing displays") return 6;
@@ -428,12 +439,31 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             return priorityForGroup(product.cat);
         }
 
+        function paletteColor(paletteName, index) {
+            const palette = PRODUCT_PALETTES[paletteName] || [0xff671f];
+            return palette[Math.max(0, Math.min(palette.length - 1, index))];
+        }
+
+        function productVisualColor(product) {
+            if (product.cat === "Gypsum diffusers") return paletteColor("gypsum", productSortRank(product));
+            if (product.cat === "LINEO (75mm)") return paletteColor("lineo", productSortRank(product));
+            if (product.cat === "LINEO PRO ventilation diffusers") return paletteColor("lineoPro", productSortRank(product) % 100);
+            if (product.cat === "LINEO PRO CONDI diffusers for A/C & ventilation") return paletteColor("condi", productSortRank(product));
+            if (product.cat === "Moulages") return paletteColor("moulages", productSortRank(product) % 100);
+            if (product.cat === "AERO PRO") return paletteColor("aero", productSortRank(product));
+            if (product.cat === "Spare parts and accessories (Gypsum and LINEO)") return paletteColor("spare", productSortRank(product) % 4);
+            if (product.cat === "Marketing displays") return paletteColor("display", 0);
+            return GROUP_COLORS[product.cat] || 0xff671f;
+        }
+
         function productSubGroup(rawCategory) {
             const raw = (rawCategory || "").trim();
+            if (raw.includes("Accessories")) return "Gypsum models";
+            if (raw.includes("LINEO Spare Parts")) return "LINEO models";
             if (raw.includes("LINEO PRO ventilation - 1 slot")) return "1 slot";
-            if (raw.includes("LINEO PRO ventilation - 2 slot")) return "2 slot";
+            if (raw.includes("LINEO PRO ventilation - 2 slot")) return "2 slots";
             if (raw.includes("Moulages 1 slot")) return "1 slot";
-            if (raw.includes("Moulages 2 slot")) return "2 slot";
+            if (raw.includes("Moulages 2 slot")) return "2 slots";
             return "";
         }
 
@@ -444,14 +474,14 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 const order = ["RN100", "RN125", "RN150", "RN160", "RN100.CO", "RN125.CO", "KV100", "KV125"];
                 return order.indexOf(code) >= 0 ? order.indexOf(code) : 999;
             }
-            if (product.cat === "LINEO") {
+            if (product.cat === "LINEO (75mm)") {
                 if (name.includes("LINEO-500")) return 0;
                 if (name.includes("LINEO-600") || name.includes("HORIZONTAL")) return 1;
                 if (name.includes("LINEO 600 VERTICAL")) return 2;
                 return 999;
             }
-            if (product.cat === "LINEO PRO ventilation") {
-                const subGroupOffset = product.subGroup === "2 slot" ? 100 : 0;
+            if (product.cat === "LINEO PRO ventilation diffusers") {
+                const subGroupOffset = product.subGroup.startsWith("2") ? 100 : 0;
                 if (name.includes("SINGLE") && name.includes("75")) return 0;
                 if (name.includes("SINGLE") && name.includes("90")) return 1;
                 if (name.includes("PROFILE") && name.includes("75")) return 2;
@@ -460,7 +490,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 if (name.includes("PUZZLE") && name.includes("90")) return subGroupOffset + 5;
                 return 999;
             }
-            if (product.cat === "LINEO PRO CONDI diffusers") {
+            if (product.cat === "LINEO PRO CONDI diffusers for A/C & ventilation") {
                 if (name.includes("125") && !name.includes("2 SLOT")) return 0;
                 if (name.includes("125") && name.includes("2 SLOT")) return 1;
                 if (name.includes("150")) return 2;
@@ -468,7 +498,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 return 999;
             }
             if (product.cat === "Moulages") {
-                const subGroupOffset = product.subGroup === "2 slot" ? 100 : 0;
+                const subGroupOffset = product.subGroup.startsWith("2") ? 100 : 0;
                 if (name.includes("200 MM")) return subGroupOffset + 0;
                 if (name.includes("500 MM")) return subGroupOffset + 1;
                 if (name.includes("1050 MM") || name.includes("1000 MM")) return subGroupOffset + 2;
@@ -517,6 +547,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
             buildProductUI();
             setupNumberSteppers();
+            setupClearZeroInputs();
             initChart();
             init3D();
             calculateROI();
@@ -581,6 +612,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     color: GROUP_COLORS[group] || 0xff671f
                 };
                 product.priority = productPlacementPriority(product);
+                product.color = productVisualColor(product);
                 return product;
             }).filter(Boolean).sort((a, b) => {
                 const groupDiff = GROUP_ORDER.indexOf(a.cat) - GROUP_ORDER.indexOf(b.cat);
@@ -599,11 +631,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 return `
                     ${showSeparator ? `
                         <tr class="bg-gray-50 dark:bg-gray-800/80">
-                            <td colspan="7" class="px-3 py-2">
-                                <div class="flex items-center gap-3 text-[9px] uppercase tracking-[0.18em] font-black text-gray-400 dark:text-gray-500">
-                                    <span class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></span>
+                            <td colspan="8" class="px-3 py-2">
+                                <div class="flex items-center gap-3 text-[9px] uppercase tracking-[0.18em] font-black text-brand-orange">
+                                    <span class="h-px flex-1 bg-brand-orange/50"></span>
                                     <span>${escapeHtml(product.subGroup)}</span>
-                                    <span class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></span>
+                                    <span class="h-px flex-1 bg-brand-orange/50"></span>
                                 </div>
                             </td>
                         </tr>
@@ -620,6 +652,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         <td class="py-2 px-3 font-bold text-brand-slate dark:text-gray-200 min-w-[320px] max-w-[520px] whitespace-normal leading-snug break-words">${escapeHtml(product.name)}</td>
                         <td class="py-2 px-3 text-center font-mono">${product.packQty}</td>
                         <td class="py-2 px-3 text-center font-mono text-[10px] text-gray-500">${product.nw.toFixed(2)} / ${product.gw.toFixed(2)}</td>
+                        <td class="py-2 px-3 text-center font-mono text-[10px] text-gray-500" id="total-weight-${escapeHtml(product.id)}">-</td>
                         <td class="py-2 px-3 text-center font-mono text-[10px] text-emerald-600 dark:text-emerald-400" id="ship-${escapeHtml(product.id)}">-</td>
                         <td class="py-2 px-3 text-right">
                             <div class="inline-flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full px-1 py-0.5">
@@ -656,7 +689,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         <span class="text-brand-orange">v</span>
                     </summary>
                     <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-b-2xl">
-                        <table class="w-full text-left text-xs min-w-[900px]">
+                        <table class="w-full text-left text-xs min-w-[1040px]">
                             <thead class="bg-gray-50 dark:bg-gray-800 text-gray-500 uppercase tracking-wider text-[9px]">
                                 <tr>
                                     <th class="py-2 px-3 w-8 text-center">Info</th>
@@ -664,6 +697,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                                     <th class="py-2 px-3">Name</th>
                                     <th class="py-2 px-3 text-center">Pack qty</th>
                                     <th class="py-2 px-3 text-center">Net/Gross (kg)</th>
+                                    <th class="py-2 px-3 text-center">Total Net/Gross (kg)</th>
                                     <th class="py-2 px-3 text-center">Ship EUR</th>
                                     <th class="py-2 px-3 text-right w-28">Order qty</th>
                                 </tr>
@@ -710,6 +744,21 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     input.value = String(Math.min(max, Math.max(min, current + delta)));
                     input.dispatchEvent(new Event("input", { bubbles: true }));
                     input.dispatchEvent(new Event("change", { bubbles: true }));
+                });
+            });
+        }
+
+        function setupClearZeroInputs() {
+            document.querySelectorAll('input[type="number"]').forEach(input => {
+                input.addEventListener("focus", () => {
+                    if (input.value === "0") input.value = "";
+                });
+                input.addEventListener("blur", () => {
+                    if (input.value === "") {
+                        input.value = "0";
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                        input.dispatchEvent(new Event("change", { bubbles: true }));
+                    }
                 });
             });
         }
@@ -783,22 +832,36 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function getPalletContainerGrid() {
             const pallet = PACKAGING_RULES.palletLoadedContainer.palletFootprintCm;
-            const columns = Math.max(1, Math.floor(currentTransport.w / pallet.width));
-            const rows = Math.max(1, Math.floor(currentTransport.l / pallet.length));
-            return { columns, rows, count: columns * rows, pallet };
+            const overhang = getOverhang();
+            const normalSlot = { width: pallet.width + overhang, length: pallet.length + overhang, rotated: false };
+            const rotatedSlot = { width: pallet.length + overhang, length: pallet.width + overhang, rotated: true };
+            const normal = {
+                ...normalSlot,
+                columns: Math.max(1, Math.floor(currentTransport.w / normalSlot.width)),
+                rows: Math.max(1, Math.floor(currentTransport.l / normalSlot.length))
+            };
+            const rotated = {
+                ...rotatedSlot,
+                columns: Math.max(1, Math.floor(currentTransport.w / rotatedSlot.width)),
+                rows: Math.max(1, Math.floor(currentTransport.l / rotatedSlot.length))
+            };
+            normal.count = normal.columns * normal.rows;
+            rotated.count = rotated.columns * rotated.rows;
+            const selected = rotated.count > normal.count ? rotated : normal;
+            return { ...selected, pallet };
         }
 
         function getPalletSlotCenters() {
             const grid = getPalletContainerGrid();
-            const startX = -((grid.columns - 1) * grid.pallet.width) / 2;
-            const startZ = -((grid.rows - 1) * grid.pallet.length) / 2;
+            const startX = -((grid.columns - 1) * grid.width) / 2;
+            const startZ = -((grid.rows - 1) * grid.length) / 2;
             const centers = [];
             for (let row = 0; row < grid.rows; row++) {
                 for (let column = 0; column < grid.columns; column++) {
                     centers.push({
                         index: centers.length,
-                        x: startX + column * grid.pallet.width,
-                        z: startZ + row * grid.pallet.length
+                        x: startX + column * grid.width,
+                        z: startZ + row * grid.length
                     });
                 }
             }
@@ -826,7 +889,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function bestBoxesPerLayer(product) {
             const footprint = currentTransport.isPalletLoadedContainer
-                ? { w: PACKAGING_RULES.palletLoadedContainer.palletFootprintCm.width, l: PACKAGING_RULES.palletLoadedContainer.palletFootprintCm.length }
+                ? { w: getPalletContainerGrid().width, l: getPalletContainerGrid().length }
                 : getAllowedFootprint();
             const normal = Math.floor(footprint.w / product.boxW) * Math.floor(footprint.l / product.boxL);
             const rotated = Math.floor(footprint.w / product.boxL) * Math.floor(footprint.l / product.boxW);
@@ -961,10 +1024,14 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         function updateShippingCells(totalPcs, shipPerItem) {
             productData.forEach(product => {
                 const cell = document.getElementById(`ship-${product.id}`);
+                const weightCell = document.getElementById(`total-weight-${product.id}`);
                 const pcs = quantities[product.id]?.pcs || 0;
+                if (weightCell) {
+                    weightCell.textContent = pcs > 0 ? `${(product.nw * pcs).toFixed(2)} / ${(product.gw * pcs).toFixed(2)}` : "-";
+                }
                 if (!cell) return;
                 if (pcs > 0 && totalPcs > 0) {
-                    cell.innerHTML = `EUR ${(shipPerItem * pcs).toFixed(1)}<br><span class="text-[8px] text-gray-400">EUR ${shipPerItem.toFixed(2)}/pc</span>`;
+                    cell.textContent = `EUR ${shipPerItem.toFixed(2)}/pc`;
                 } else {
                     cell.textContent = "-";
                 }
@@ -1000,16 +1067,19 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 const style = active
                     ? "bg-brand-slate text-white border-transparent shadow-lg transform -translate-y-1"
                     : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600";
+                const unitLabel = currentTransport.type === "container" ? `CONT ${index + 1}` : `PAL ${index + 1}`;
+                const palletCountText = currentTransport.isPalletLoadedContainer ? `<span class="${active ? "text-gray-300" : "text-gray-400"}">Pals: ${getPalletContainerGrid().count}</span>` : "";
                 return `
                     <div onclick="switchActiveView(${index})" class="unit-badge border px-4 py-2 rounded-xl flex flex-col cursor-pointer min-w-[120px] ${style}">
                         <div class="flex justify-between items-center border-b ${active ? "border-gray-500" : "border-gray-200 dark:border-gray-600"} pb-1 mb-1">
-                            <span class="font-bold text-xs uppercase">Unit ${index + 1}</span>
+                            <span class="font-bold text-xs uppercase">${unitLabel}</span>
                             <span class="text-[10px] font-black text-brand-orange bg-black/10 px-1 py-0.5 rounded">${unit.efficiency.toFixed(0)}%</span>
                         </div>
                         <div class="flex justify-between text-[10px] font-mono">
                             <span>G: ${unit.gross.toFixed(0)}kg</span>
                             <span class="${active ? "text-gray-300" : "text-gray-400"}">N: ${unit.net.toFixed(0)}kg</span>
                         </div>
+                        ${palletCountText ? `<div class="text-[10px] font-mono mt-1">${palletCountText}</div>` : ""}
                     </div>
                 `;
             }).join("");
@@ -1064,7 +1134,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             const loadHeight = getBaseHeight() + partitionedUnits[index].currHeight;
             document.getElementById("dim-footprint").textContent = `${footprint.w.toFixed(0)} x ${footprint.l.toFixed(0)} cm`;
             document.getElementById("dim-maxheight").textContent = `${currentTransport.maxH.toFixed(0)} cm`;
-            document.getElementById("dim-currheight").textContent = `${loadHeight.toFixed(1)} cm`;
+            document.getElementById("dim-currheight").textContent = `${loadHeight.toFixed(1)} x ${footprint.w.toFixed(0)} x ${footprint.l.toFixed(0)} cm`;
         }
 
         function computePlacements(packs) {
@@ -1127,7 +1197,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 }
             });
 
-            centerPlacementsInFootprint(placements, footprint, { x: 0, z: 0 });
+            centerPlacementLayersInFootprint(placements, footprint, { x: 0, z: 0 });
 
             return {
                 placements,
@@ -1151,6 +1221,16 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 placement.x += boundedShiftX;
                 placement.z += boundedShiftZ;
             });
+        }
+
+        function centerPlacementLayersInFootprint(placements, footprint, origin) {
+            const groups = new Map();
+            placements.forEach(placement => {
+                const bottom = (placement.y - placement.h / 2).toFixed(3);
+                if (!groups.has(bottom)) groups.set(bottom, []);
+                groups.get(bottom).push(placement);
+            });
+            groups.forEach(layerPlacements => centerPlacementsInFootprint(layerPlacements, footprint, origin));
         }
 
         function centeredColumnPositions(containerWidth, itemWidth) {
@@ -1278,7 +1358,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function computePalletLoadedContainerPlacements(packs) {
             const grid = getPalletContainerGrid();
-            const palletFootprint = { w: grid.pallet.width, l: grid.pallet.length };
+            const palletFootprint = { w: grid.width, l: grid.length };
             const slots = getPalletSlotCenters();
             const baseHeight = getBaseHeight();
             const maxY = currentTransport.maxH;
@@ -1312,7 +1392,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
             slots.forEach(slot => {
                 const slotPlacements = placements.filter(placement => placement.palletSlotIndex === slot.index);
-                centerPlacementsInFootprint(slotPlacements, palletFootprint, slot);
+                centerPlacementLayersInFootprint(slotPlacements, palletFootprint, slot);
             });
 
             return {
@@ -1389,7 +1469,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
     </script>
 
     <script id="three-core">
-        let scene, camera, renderer, controls, stackGroup, raycaster, mouse;
+        let scene, camera, renderer, controls, stackGroup, raycaster, mouse, groundMesh;
         let interactiveBoxes = [];
 
         function init3D() {
@@ -1417,13 +1497,13 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             directLight.castShadow = true;
             scene.add(directLight);
 
-            const floor = new THREE.Mesh(
+            groundMesh = new THREE.Mesh(
                 new THREE.PlaneGeometry(3000, 3000),
                 new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 1.0 })
             );
-            floor.rotation.x = -Math.PI / 2;
-            floor.receiveShadow = true;
-            scene.add(floor);
+            groundMesh.rotation.x = -Math.PI / 2;
+            groundMesh.receiveShadow = true;
+            scene.add(groundMesh);
 
             stackGroup = new THREE.Group();
             scene.add(stackGroup);
@@ -1437,7 +1517,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function update3DBackground() {
             if (!scene) return;
-            scene.background.set(document.documentElement.classList.contains("dark") ? 0x0f172a : 0xf1f5f9);
+            const isDark = document.documentElement.classList.contains("dark");
+            scene.background.set(isDark ? 0x0f172a : 0xf1f5f9);
+            if (groundMesh) groundMesh.material.color.set(isDark ? 0x111827 : 0xe2e8f0);
         }
 
         function onWindowResize() {
@@ -1510,9 +1592,12 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         function renderTransportBase(footprint, baseHeight) {
             if (baseHeight <= 0) return;
             if (currentTransport.isPalletLoadedContainer && PACKAGING_RULES.palletLoadedContainer.showPalletsInsideContainer) {
-                const pallet = PACKAGING_RULES.palletLoadedContainer.palletFootprintCm;
+                const grid = getPalletContainerGrid();
+                const pallet = grid.pallet;
+                const palletWidth = grid.rotated ? pallet.length : pallet.width;
+                const palletLength = grid.rotated ? pallet.width : pallet.length;
                 getPalletSlotCenters().forEach(slot => {
-                    addPalletMesh(pallet.width, baseHeight, pallet.length, slot.x, slot.z);
+                    addPalletMesh(palletWidth, baseHeight, palletLength, slot.x, slot.z);
                 });
                 return;
             }
