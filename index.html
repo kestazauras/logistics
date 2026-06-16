@@ -61,7 +61,7 @@
             <div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center font-black text-white text-2xl shadow-sm">E</div>
             <div>
                 <h1 class="font-bold text-xl leading-tight text-brand-slate dark:text-white tracking-tight">ERGOVENT - loading optimizer</h1>
-                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">v_14</span></p>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">v_15</span></p>
             </div>
         </div>
         <div class="flex gap-4 items-center">
@@ -86,6 +86,7 @@
                         <button type="button" class="stepper-btn !w-5 !h-5 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600" data-stepper-target="overhang-input" data-stepper-delta="-1">-</button>
                         <input type="number" id="overhang-input" value="10" min="0" max="50" step="1" class="w-8 bg-transparent text-center outline-none text-brand-orange border-b border-brand-orange font-bold">cm
                         <button type="button" class="stepper-btn !w-5 !h-5 bg-white dark:bg-gray-800 text-brand-orange border border-gray-200 dark:border-gray-600" data-stepper-target="overhang-input" data-stepper-delta="1">+</button>
+                        <button type="button" onclick="resetOverhang()" class="ml-1 text-[9px] uppercase tracking-wider font-black text-brand-orange bg-white dark:bg-gray-800 border border-brand-orange/30 rounded-full px-2 py-1">default</button>
                         <span class="ml-1 text-[9px] uppercase tracking-wider opacity-60">Allowed overhang</span>
                     </span>
                 </h2>
@@ -198,8 +199,8 @@ LINEO PRO ventilation - 2 slot,LP75.220.301,4779051540884,841490,ERGOVENT LINEO 
 LINEO PRO ventilation - 2 slot,LP90.220.301,4779051541041,841490,ERGOVENT LINEO PRO PUZZLE connected (90mm / 2 slots),7,6.25,24,124,19,1,24,124,19,60,6,10
 LINEO PRO AC,LP125.120301,4779051544,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -2x 125mm (1 slot),10.12,8.26,21,124,24,1,21,124,24,60,6,10
 LINEO PRO AC,LP125.220301,477905154189,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -2x 125mm (2 slots),10.12,8.26,21,124,24,1,21,124,24,60,6,10
-LINEO PRO AC,LP150.320301,4779051540952,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -3x 150mm (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
-LINEO PRO AC,LP160.320301,4779051540891,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -3x 160mm (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
+LINEO PRO AC,LP150.320301,4779051540952,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -3x 150mm (3 slots),10.12,7.22,21,124,24,1,30,112,34,21,3,7
+LINEO PRO AC,LP160.320301,4779051540891,841490,ERGOVENT LINEO PRO CONDI [PUZZLE] -3x 160mm (3 slots),10.12,7.22,21,124,24,1,30,112,34,21,3,7
 LINEO 500 / 600,LN75.120.101,4779051540402,841490,ERGOVENT LINEO-500,3.4,2.96,18,54,23,1,18,54,23,60,6,10
 LINEO 500 / 600,LN75.120.201,4779051540426,841490,ERGOVENT LINEO 600 HORIZONTAL connection,3.54,2.98,17,64,24,1,17,64,24,60,6,10
 LINEO 500 / 600,LN75.120.101,4779051540433,841490,ERGOVENT LINEO 600 VERTICAL connection,3.54,2.54,22,64,24,1,22,64,24,60,6,10
@@ -331,8 +332,8 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     RONDO_150_160: 3,
                     LINEO: 4,
                     MOUL_AERO: 5,
-                    SPARE_PARTS: 6,
-                    DEMO_BOX: 7
+                    DEMO_BOX: 6,
+                    SPARE_PARTS: 7
                 };
                 this.MAX_CAPACITIES = {
                     RN100: { FIN: 168, "20HQ_FLOOR": 1764 },
@@ -460,6 +461,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     remainingItems.push(...bricklaid.remaining);
                 }
 
+                const layerPacked = this.packRuleBasedLayers(remainingItems, packedItems, obstacles, config);
+                remainingItems = layerPacked.remaining;
+
                 remainingItems.sort((a, b) => {
                     if (a.priority !== b.priority) return a.priority - b.priority;
                     return (b.w * b.l * b.h) - (a.w * a.l * a.h);
@@ -475,7 +479,10 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         for (const rotation of rotations) {
                             const candidate = { x: point.x, z: point.z, y: point.y, w: rotation[0], l: rotation[1], h: rotation[2], priority: item.priority, sku: item.sku };
                             if (!this.isValidPlacement(candidate, config.width, config.length, config.maxY - config.baseHeight, packedItems, obstacles)) continue;
-                            const score = candidate.y * 100000 + Math.abs(candidate.x + candidate.w / 2 - config.width / 2) + Math.abs(candidate.z + candidate.l / 2 - config.length / 2);
+                            const centerScore = Math.abs(candidate.x + candidate.w / 2 - config.width / 2) + Math.abs(candidate.z + candidate.l / 2 - config.length / 2);
+                            const score = item.priority === this.PRIORITY.SPARE_PARTS
+                                ? (-candidate.y * 100000) + centerScore
+                                : candidate.y * 100000 + centerScore;
                             if (!best || score < best.score) best = { score, candidate, item };
                         }
                     }
@@ -487,13 +494,104 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     extremePoints.push({ x: placed.x, z: placed.z, y: placed.y + placed.h });
                     extremePoints = this.filterPoints(extremePoints, config.width, config.length, config.maxY - config.baseHeight);
                 }
-
-                this.placeUnpackedDemoBoxesOnTop(remainingItems, packedItems, config);
                 this.centerLayers(packedItems, config.width, config.length, obstacles);
                 const placements = packedItems.map(item => this.toPlacement(item, config));
                 const productHeight = packedItems.reduce((height, item) => Math.max(height, item.y + item.h), 0);
                 const packedIds = new Set(packedItems.map(item => item.id));
                 return { placements, productHeight, unpacked: items.filter(item => !packedIds.has(item.id)) };
+            }
+
+            packRuleBasedLayers(items, packedItems, obstacles, config) {
+                const remaining = [];
+                const groups = new Map();
+                items.forEach(item => {
+                    const key = this.layerRuleKey(item);
+                    if (!key) {
+                        remaining.push(item);
+                        return;
+                    }
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key).push(item);
+                });
+
+                let cursorY = packedItems.reduce((height, item) => Math.max(height, item.y + item.h), 0);
+                for (const [key, groupItems] of groups.entries()) {
+                    const rule = this.layerRuleForKey(key, groupItems[0]);
+                    let index = 0;
+                    while (index < groupItems.length) {
+                        const layerItems = groupItems.slice(index, index + rule.perLayer);
+                        const layer = this.buildCenteredLayer(layerItems, rule, config.width, config.length, cursorY);
+                        if (!layer || layer.some(candidate => !this.isValidPlacement(candidate, config.width, config.length, config.maxY - config.baseHeight, packedItems, obstacles))) {
+                            remaining.push(...groupItems.slice(index));
+                            break;
+                        }
+                        packedItems.push(...layer);
+                        cursorY += Math.max(...layer.map(item => item.h));
+                        index += layerItems.length;
+                    }
+                }
+                return { remaining };
+            }
+
+            layerRuleKey(item) {
+                const s = item.sku;
+                if (["RN150", "RN160"].includes(s)) return "RN150_160";
+                if (s.startsWith("LP") && !s.startsWith("LPM") && !s.startsWith("LP.P") && !s.startsWith("LPB")) return "LINEO_PRO";
+                if (s.startsWith("LN")) return "LINEO";
+                if (s.startsWith("LPM") || s.startsWith("AE75") || s.includes("D75-C")) return `MOUL_AERO_${s}`;
+                return "";
+            }
+
+            layerRuleForKey(key, item) {
+                if (key === "RN150_160") return { perLayer: 9, columns: 3, rows: 3, flatOnly: true };
+                if (key === "LINEO_PRO") {
+                    const single = ["LP75.120.101", "LP90.120.101"].includes(item.sku);
+                    return { perLayer: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3), columns: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3), rows: 1, flatOnly: true };
+                }
+                if (key === "LINEO") return { perLayer: 8, columns: 4, rows: 2, flatOnly: true };
+                return { perLayer: Math.max(1, Math.min(8, Math.floor(110 / Math.max(1, Math.min(item.w, item.l))))), columns: 4, rows: 2, flatOnly: true };
+            }
+
+            buildCenteredLayer(items, rule, width, length, y) {
+                if (!items.length) return [];
+                const first = items[0];
+                const orientation = this.bestLayerOrientation(first, rule, width, length);
+                if (!orientation) return null;
+                const positions = [];
+                for (let row = 0; row < rule.rows && positions.length < items.length; row++) {
+                    for (let column = 0; column < rule.columns && positions.length < items.length; column++) {
+                        positions.push({ column, row });
+                    }
+                }
+                const usedColumns = Math.min(rule.columns, Math.max(...positions.map(p => p.column)) + 1);
+                const usedRows = Math.min(rule.rows, Math.max(...positions.map(p => p.row)) + 1);
+                const blockW = usedColumns * orientation.w;
+                const blockL = usedRows * orientation.l;
+                const startX = (width - blockW) / 2;
+                const startZ = (length - blockL) / 2;
+                if (blockW > width + 0.001 || blockL > length + 0.001) return null;
+                return items.map((item, index) => {
+                    const pos = positions[index];
+                    return {
+                        ...item,
+                        x: startX + pos.column * orientation.w,
+                        z: startZ + pos.row * orientation.l,
+                        y,
+                        w: orientation.w,
+                        l: orientation.l,
+                        h: orientation.h,
+                        ruleLayer: true
+                    };
+                });
+            }
+
+            bestLayerOrientation(item, rule, width, length) {
+                const rotations = rule.flatOnly ? this.getFlatRotations(item.w, item.l, item.h, item.sku) : this.getRotations(item.w, item.l, item.h, item.sku);
+                const candidates = rotations.map(rotation => ({ w: rotation[0], l: rotation[1], h: rotation[2] }))
+                    .filter(o => o.w * rule.columns <= width + 0.001 && o.l * rule.rows <= length + 0.001);
+                if (!candidates.length) return null;
+                candidates.sort((a, b) => (a.h - b.h) || ((a.w * a.l) - (b.w * b.l)));
+                return candidates[0];
             }
 
             packFloorLoaded(items, config) {
@@ -540,26 +638,6 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 }));
                 const productHeight = packedItems.reduce((height, item) => Math.max(height, item.y + item.h), 0);
                 return { placements, productHeight, unpacked: sorted.filter(item => !packedItems.some(packed => packed.id === item.id)) };
-            }
-
-            placeUnpackedDemoBoxesOnTop(allItems, packedItems, config) {
-                const packedIds = new Set(packedItems.map(item => item.id));
-                const demos = allItems.filter(item => item.priority === this.PRIORITY.DEMO_BOX && !packedIds.has(item.id));
-                for (const demo of demos) {
-                    const y = packedItems.reduce((height, item) => item.priority === this.PRIORITY.DEMO_BOX ? height : Math.max(height, item.y + item.h), 0);
-                    const candidate = {
-                        ...demo,
-                        x: (config.width - demo.w) / 2,
-                        z: (config.length - demo.l) / 2,
-                        y,
-                        w: demo.w,
-                        l: demo.l,
-                        h: demo.h
-                    };
-                    if (candidate.y + candidate.h <= config.maxY - config.baseHeight + 0.001 && !packedItems.some(item => this.intersects(candidate, item))) {
-                        packedItems.push(candidate);
-                    }
-                }
             }
 
             seedExtremePoints(packedItems, maxWidth, maxLength, maxHeight) {
@@ -617,10 +695,6 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     for (const item of packedItems) {
                         if (item.sku === candidate.sku && Math.abs(item.x - candidate.x) < 5 && Math.abs(item.z - candidate.z) < 5) return false;
                     }
-                }
-                if (candidate.priority === this.PRIORITY.DEMO_BOX) {
-                    const maxNonDemoY = packedItems.reduce((height, item) => item.priority === this.PRIORITY.DEMO_BOX ? height : Math.max(height, item.y + item.h), 0);
-                    if (candidate.y < maxNonDemoY - 0.01) return false;
                 }
                 for (const item of packedItems) if (this.intersects(candidate, item)) return false;
                 for (const obstacle of obstacles) {
@@ -1218,6 +1292,13 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             calculateROI();
         }
 
+        function resetOverhang() {
+            const input = document.getElementById("overhang-input");
+            input.value = "10";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
         function initChart() {
             const ctx = document.getElementById("efficiency-chart").getContext("2d");
             chartInstance = new Chart(ctx, {
@@ -1239,8 +1320,26 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             return Math.max(0, parseNumber(document.getElementById("overhang-input").value, 0));
         }
 
+        function getAutoOverhang() {
+            if (currentTransport.type !== "pallet") return 0;
+            let required = 0;
+            productData.forEach(product => {
+                const qty = quantities[product.id]?.pcs || 0;
+                if (qty <= 0) return;
+                const needsLayerFit = product.cat === "LINEO PRO ventilation diffusers" || product.cat === "LINEO PRO CONDI diffusers for A/C & ventilation";
+                if (!needsLayerFit || !product.layerUnitsFin) return;
+                const shortSide = Math.min(product.boxW, product.boxL);
+                required = Math.max(required, (product.layerUnitsFin * shortSide) - currentTransport.w);
+            });
+            return Math.max(0, Math.min(50, Math.ceil(required)));
+        }
+
+        function getEffectiveOverhang() {
+            return Math.max(getOverhang(), getAutoOverhang());
+        }
+
         function getOverhangPerSide() {
-            return PACKAGING_RULES.overhang.splitAcrossSides ? getOverhang() / 2 : getOverhang();
+            return PACKAGING_RULES.overhang.splitAcrossSides ? getEffectiveOverhang() / 2 : getEffectiveOverhang();
         }
 
         function isFinPalletTransport() {
@@ -1286,7 +1385,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         }
 
         function getAllowedFootprint() {
-            const overhang = getOverhang();
+            const overhang = getEffectiveOverhang();
             const canOverhang = currentTransport.type === "pallet";
             return {
                 w: currentTransport.w + (canOverhang ? overhang : 0),
@@ -1305,6 +1404,10 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         }
 
         function bestBoxesPerLayer(product) {
+            if (["RN150", "RN160"].includes(product.code)) return 9;
+            if (["LP75.120.101", "LP90.120.101"].includes(product.code)) return 6;
+            if (product.cat === "LINEO PRO ventilation diffusers" || product.cat === "LINEO PRO CONDI diffusers for A/C & ventilation") return Math.max(3, product.layerUnitsFin || 3);
+            if (product.cat === "LINEO (75mm)") return product.code === "LN75.120.201" ? 8 : 8;
             const footprint = currentTransport.isPalletLoadedContainer
                 ? { w: getPalletContainerGrid().width, l: getPalletContainerGrid().length }
                 : getAllowedFootprint();
@@ -1374,9 +1477,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 partitionedUnits.push(unit);
 
                 activePacks.forEach(pack => {
-                    const capacity = productCapacityUnits(pack.product);
-                    const fraction = pack.pcs / capacity;
-                    const wouldOverflow = unit.packs.length > 0 && (unit.fraction + fraction > 1.000001);
+                    const wouldOverflow = unit.packs.length > 0 && !canPlaceAllPacks([...unit.packs, pack]);
                     if (wouldOverflow) {
                         finalizeUnit(unit);
                         unit = createUnit();
@@ -1386,7 +1487,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     unit.gross += pack.gross;
                     unit.net += pack.net;
                     unit.volume += pack.volume;
-                    unit.fraction += fraction;
+                    unit.fraction += pack.pcs / productCapacityUnits(pack.product);
                 });
                 partitionedUnits.forEach(finalizeUnit);
             }
@@ -1430,6 +1531,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 currHeight: 0,
                 placements: []
             };
+        }
+
+        function canPlaceAllPacks(packs) {
+            const layout = computePlacements(packs);
+            return layout.placements.length === packs.length;
         }
 
         function finalizeUnit(unit) {
@@ -1517,6 +1623,10 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             }
             const fullLayerWarning = getGypsumFullLayerWarning();
             if (fullLayerWarning) warnings.push(fullLayerWarning);
+            const autoOverhang = getAutoOverhang();
+            if (autoOverhang > getOverhang()) {
+                warnings.push(`! Auto overhang increased to ${autoOverhang} cm for LINEO PRO layer fit.`);
+            }
 
             if (warnings.length) {
                 panel.classList.remove("hidden");
