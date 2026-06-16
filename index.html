@@ -61,7 +61,7 @@
             <div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center font-black text-white text-2xl shadow-sm">E</div>
             <div>
                 <h1 class="font-bold text-xl leading-tight text-brand-slate dark:text-white tracking-tight">ERGOVENT - loading optimizer</h1>
-                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">v_12</span></p>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">v_13</span></p>
             </div>
         </div>
         <div class="flex gap-4 items-center">
@@ -314,6 +314,377 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 { rank: 7, label: "Spare parts and accessories" }
             ]
         };
+    </script>
+
+
+    <!-- ====================================================================== -->
+    <!-- ERGOVENT STACKING ALGORITHM BLOCK                                      -->
+    <!-- Gemini-derived packing engine adapted to current product/loading data.  -->
+    <!-- ====================================================================== -->
+    <script id="ergovent-stacking-algorithm">
+        class ErgoventLogisticsOptimizer {
+            constructor() {
+                this.PRIORITY = {
+                    STANDS: 0,
+                    RONDO_KV100_125: 1,
+                    LINEO_PRO: 2,
+                    RONDO_150_160: 3,
+                    LINEO: 4,
+                    MOUL_AERO: 5,
+                    SPARE_PARTS: 6,
+                    DEMO_BOX: 7
+                };
+            }
+
+            packForCurrentTransport(packs) {
+                const items = this.expandPacks(packs);
+                if (!items.length) return { placements: [], productHeight: 0, unpacked: [] };
+                if (currentTransport.isFloorLoaded) {
+                    return this.packFloorLoaded(items, {
+                        width: getAllowedFootprint().w,
+                        length: getAllowedFootprint().l,
+                        height: currentTransport.maxH
+                    });
+                }
+                if (currentTransport.isPalletLoadedContainer) {
+                    return this.packPalletContainer(items);
+                }
+                return this.packPalletized(items, {
+                    origin: { x: 0, z: 0 },
+                    width: getAllowedFootprint().w,
+                    length: getAllowedFootprint().l,
+                    baseHeight: getBaseHeight(),
+                    maxY: currentTransport.maxH,
+                    allowBricklaying: true,
+                    palletSlotIndex: undefined
+                });
+            }
+
+            expandPacks(packs) {
+                return packs.map((pack, index) => ({
+                    id: `${pack.product.id || pack.product.code}_${index}`,
+                    sku: pack.product.code,
+                    name: pack.product.name,
+                    w: pack.product.boxW,
+                    l: pack.product.boxL,
+                    h: pack.product.boxH,
+                    weight: pack.gross || pack.product.gw * pack.product.packQty,
+                    priority: this.getItemPriority(pack.product.code, pack.product.name),
+                    product: pack.product,
+                    pack
+                }));
+            }
+
+            getItemPriority(sku, name) {
+                const s = (sku || '').toUpperCase();
+                const n = (name || '').toUpperCase();
+                if (s.includes('STAND') || n.includes('METAL STAND') || n.includes('TRAFFIC LIGHT')) return this.PRIORITY.STANDS;
+                if (['RN100', 'RN125', 'KV100', 'KV125', 'RN100.CO', 'RN125.CO'].includes(s) || n.includes('RONDO-100') || n.includes('RONDO-125') || n.includes('KVADRO-100') || n.includes('KVADRO-125') || n.includes('COANDA-100') || n.includes('COANDA-125')) return this.PRIORITY.RONDO_KV100_125;
+                if (s.startsWith('LP') && !s.startsWith('LPM') && !s.startsWith('LND') && !s.startsWith('LP.P') && !s.startsWith('LPB')) return this.PRIORITY.LINEO_PRO;
+                if (['RN150', 'RN160'].includes(s) || n.includes('RONDO-150') || n.includes('RONDO-160')) return this.PRIORITY.RONDO_150_160;
+                if (s.startsWith('LN')) return this.PRIORITY.LINEO;
+                if (s.startsWith('LPM') || s.startsWith('AE75') || s.includes('D75-C')) return this.PRIORITY.MOUL_AERO;
+                if (n.includes('DEMO BOX') || s.includes('DEMO')) return this.PRIORITY.DEMO_BOX;
+                return this.PRIORITY.SPARE_PARTS;
+            }
+
+            packPalletContainer(items) {
+                const grid = getPalletContainerGrid();
+                const slots = getPalletSlotCenters();
+                let remaining = [...items];
+                const placements = [];
+                let productHeight = 0;
+                for (const slot of slots) {
+                    if (!remaining.length) break;
+                    const packedSlot = this.packPalletized(remaining, {
+                        origin: slot,
+                        width: grid.width,
+                        length: grid.length,
+                        baseHeight: getBaseHeight(),
+                        maxY: currentTransport.maxH,
+                        allowBricklaying: true,
+                        palletSlotIndex: slot.index
+                    });
+                    placements.push(...packedSlot.placements);
+                    productHeight = Math.max(productHeight, packedSlot.productHeight);
+                    const packedIds = new Set(packedSlot.placements.map(placement => placement.itemId));
+                    remaining = remaining.filter(item => !packedIds.has(item.id));
+                }
+                return { placements, productHeight, unpacked: remaining };
+            }
+
+            packPalletized(items, config) {
+                const packedItems = [];
+                let remainingItems = [...items];
+                const obstacles = [];
+                const stands = remainingItems.filter(item => item.priority === this.PRIORITY.STANDS);
+                remainingItems = remainingItems.filter(item => item.priority !== this.PRIORITY.STANDS);
+
+                stands.forEach((stand, index) => {
+                    const w = Math.min(stand.w, config.width);
+                    const l = Math.min(stand.l, config.length);
+                    const placed = {
+                        ...stand,
+                        x: (config.width - w) / 2,
+                        z: (config.length - l) / 2,
+                        y: 0,
+                        w,
+                        l,
+                        h: stand.h,
+                        standReserved: true,
+                        standIndex: index
+                    };
+                    packedItems.push(placed);
+                    obstacles.push({ x: placed.x, z: placed.z, y: 0, w, l, h: Math.max(0, config.maxY - config.baseHeight) });
+                });
+
+                const brickItems = remainingItems.filter(item => item.priority === this.PRIORITY.RONDO_KV100_125 && Math.round(item.w) === 32 && Math.round(item.l) === 64 && Math.round(item.h) === 32);
+                if (config.allowBricklaying && brickItems.length && !obstacles.length) {
+                    const brickIds = new Set(brickItems.map(item => item.id));
+                    remainingItems = remainingItems.filter(item => !brickIds.has(item.id));
+                    const bricklaid = this.generateBricklaying(brickItems, Math.floor((config.maxY - config.baseHeight) / 32), config.width, config.length);
+                    packedItems.push(...bricklaid.packed);
+                    remainingItems.push(...bricklaid.remaining);
+                }
+
+                remainingItems.sort((a, b) => {
+                    if (a.priority !== b.priority) return a.priority - b.priority;
+                    return (b.w * b.l * b.h) - (a.w * a.l * a.h);
+                });
+
+                let extremePoints = [{ x: 0, z: 0, y: 0 }];
+                for (const item of remainingItems) {
+                    let best = null;
+                    const rotations = item.priority === this.PRIORITY.DEMO_BOX || item.priority === this.PRIORITY.STANDS
+                        ? [[item.w, item.l, item.h]]
+                        : this.getRotations(item.w, item.l, item.h);
+                    for (const point of extremePoints) {
+                        for (const rotation of rotations) {
+                            const candidate = { x: point.x, z: point.z, y: point.y, w: rotation[0], l: rotation[1], h: rotation[2], priority: item.priority };
+                            if (!this.isValidPlacement(candidate, config.width, config.length, config.maxY - config.baseHeight, packedItems, obstacles)) continue;
+                            const score = candidate.y * 100000 + Math.abs(candidate.x + candidate.w / 2 - config.width / 2) + Math.abs(candidate.z + candidate.l / 2 - config.length / 2);
+                            if (!best || score < best.score) best = { score, candidate, item };
+                        }
+                    }
+                    if (!best) continue;
+                    const placed = { ...best.item, ...best.candidate };
+                    packedItems.push(placed);
+                    extremePoints.push({ x: placed.x + placed.w, z: placed.z, y: placed.y });
+                    extremePoints.push({ x: placed.x, z: placed.z + placed.l, y: placed.y });
+                    extremePoints.push({ x: placed.x, z: placed.z, y: placed.y + placed.h });
+                    extremePoints = this.filterPoints(extremePoints, config.width, config.length, config.maxY - config.baseHeight);
+                }
+
+                this.placeUnpackedDemoBoxesOnTop(remainingItems, packedItems, config);
+                this.centerLayers(packedItems, config.width, config.length, obstacles);
+                const placements = packedItems.map(item => this.toPlacement(item, config));
+                const productHeight = packedItems.reduce((height, item) => Math.max(height, item.y + item.h), 0);
+                const packedIds = new Set(packedItems.map(item => item.id));
+                return { placements, productHeight, unpacked: items.filter(item => !packedIds.has(item.id)) };
+            }
+
+            packFloorLoaded(items, config) {
+                const sorted = [...items].sort((a, b) => {
+                    if (a.priority !== b.priority) return a.priority - b.priority;
+                    return (b.w * b.l * b.h) - (a.w * a.l * a.h);
+                });
+                const packedItems = [];
+                let extremePoints = [{ x: 0, z: 0, y: 0 }];
+                for (const item of sorted) {
+                    let best = null;
+                    const rotations = item.priority === this.PRIORITY.DEMO_BOX ? [[item.w, item.l, item.h]] : this.getFlatRotations(item.w, item.l, item.h);
+                    for (const rotation of rotations) {
+                        const centered = { x: (config.width - rotation[0]) / 2, z: 0, y: 0 };
+                        const candidates = [centered, ...extremePoints];
+                        for (const point of candidates) {
+                            const candidate = { x: point.x, z: point.z, y: point.y, w: rotation[0], l: rotation[1], h: rotation[2], priority: item.priority };
+                            if (!this.isValidPlacement(candidate, config.width, config.length, config.height, packedItems, [])) continue;
+                            const centerDist = Math.abs(candidate.x + candidate.w / 2 - config.width / 2);
+                            const score = candidate.z * 1000000 + centerDist * 1000 - candidate.y;
+                            if (!best || score < best.score) best = { score, candidate, item };
+                        }
+                    }
+                    if (!best) continue;
+                    const placed = { ...best.item, ...best.candidate };
+                    packedItems.push(placed);
+                    extremePoints.push({ x: placed.x + placed.w, z: placed.z, y: placed.y });
+                    extremePoints.push({ x: placed.x, z: placed.z + placed.l, y: placed.y });
+                    extremePoints.push({ x: placed.x, z: placed.z, y: placed.y + placed.h });
+                    extremePoints = this.filterPoints(extremePoints, config.width, config.length, config.height);
+                }
+                const placements = packedItems.map(item => ({
+                    pack: item.pack,
+                    product: item.product,
+                    itemId: item.id,
+                    x: item.x + item.w / 2 - config.width / 2,
+                    y: item.y + item.h / 2,
+                    z: item.z + item.l / 2 - config.length / 2,
+                    w: item.w,
+                    h: item.h,
+                    l: item.l,
+                    rotated: item.w !== item.product.boxW || item.l !== item.product.boxL
+                }));
+                const productHeight = packedItems.reduce((height, item) => Math.max(height, item.y + item.h), 0);
+                return { placements, productHeight, unpacked: sorted.filter(item => !packedItems.some(packed => packed.id === item.id)) };
+            }
+
+            placeUnpackedDemoBoxesOnTop(allItems, packedItems, config) {
+                const packedIds = new Set(packedItems.map(item => item.id));
+                const demos = allItems.filter(item => item.priority === this.PRIORITY.DEMO_BOX && !packedIds.has(item.id));
+                for (const demo of demos) {
+                    const y = packedItems.reduce((height, item) => item.priority === this.PRIORITY.DEMO_BOX ? height : Math.max(height, item.y + item.h), 0);
+                    const candidate = {
+                        ...demo,
+                        x: (config.width - demo.w) / 2,
+                        z: (config.length - demo.l) / 2,
+                        y,
+                        w: demo.w,
+                        l: demo.l,
+                        h: demo.h
+                    };
+                    if (candidate.y + candidate.h <= config.maxY - config.baseHeight + 0.001 && !packedItems.some(item => this.intersects(candidate, item))) {
+                        packedItems.push(candidate);
+                    }
+                }
+            }
+
+            toPlacement(item, config) {
+                return {
+                    pack: item.pack,
+                    product: item.product,
+                    itemId: item.id,
+                    x: config.origin.x + item.x + item.w / 2 - config.width / 2,
+                    y: config.baseHeight + item.y + item.h / 2,
+                    z: config.origin.z + item.z + item.l / 2 - config.length / 2,
+                    w: item.w,
+                    h: item.h,
+                    l: item.l,
+                    rotated: item.w !== item.product.boxW || item.l !== item.product.boxL,
+                    brick: !!item.brick,
+                    standReserved: !!item.standReserved,
+                    palletSlotIndex: config.palletSlotIndex
+                };
+            }
+
+            generateBricklaying(items, maxLayers, packWidth, packLength) {
+                const packed = [];
+                const remaining = [...items];
+                const xOffset = (packWidth - 96) / 2;
+                const zOffset = (packLength - 128) / 2;
+                for (let layer = 0; layer < maxLayers && remaining.length; layer++) {
+                    const y = layer * 32;
+                    const positions = layer % 2 === 0
+                        ? [{ x: 0, z: 0, w: 32, l: 64 }, { x: 0, z: 64, w: 32, l: 64 }, { x: 32, z: 0, w: 64, l: 32 }, { x: 32, z: 32, w: 64, l: 32 }, { x: 32, z: 64, w: 64, l: 32 }, { x: 32, z: 96, w: 64, l: 32 }]
+                        : [{ x: 0, z: 0, w: 64, l: 32 }, { x: 0, z: 32, w: 64, l: 32 }, { x: 0, z: 64, w: 64, l: 32 }, { x: 0, z: 96, w: 64, l: 32 }, { x: 64, z: 0, w: 32, l: 64 }, { x: 64, z: 64, w: 32, l: 64 }];
+                    for (const position of positions) {
+                        if (!remaining.length) break;
+                        const item = remaining.shift();
+                        packed.push({ ...item, x: position.x + xOffset, z: position.z + zOffset, y, w: position.w, l: position.l, h: 32, brick: true });
+                    }
+                }
+                return { packed, remaining };
+            }
+
+            isValidPlacement(candidate, packWidth, packLength, packHeight, packedItems, obstacles) {
+                if (candidate.x < 0 || candidate.x + candidate.w > packWidth) return false;
+                if (candidate.z < 0 || candidate.z + candidate.l > packLength) return false;
+                if (candidate.y < 0 || candidate.y + candidate.h > packHeight) return false;
+                if (candidate.priority === this.PRIORITY.DEMO_BOX) {
+                    const maxNonDemoY = packedItems.reduce((height, item) => item.priority === this.PRIORITY.DEMO_BOX ? height : Math.max(height, item.y + item.h), 0);
+                    if (candidate.y < maxNonDemoY - 0.01) return false;
+                }
+                for (const item of packedItems) if (this.intersects(candidate, item)) return false;
+                for (const obstacle of obstacles) {
+                    const xOverlap = Math.max(0, Math.min(candidate.x + candidate.w, obstacle.x + obstacle.w) - Math.max(candidate.x, obstacle.x));
+                    const zOverlap = Math.max(0, Math.min(candidate.z + candidate.l, obstacle.z + obstacle.l) - Math.max(candidate.z, obstacle.z));
+                    if (xOverlap > 0 && zOverlap > 0 && candidate.y + candidate.h > obstacle.y) return false;
+                }
+                if (candidate.y > 0 && this.getBottomSupportRatio(candidate, packedItems) < (2 / 3)) return false;
+                return true;
+            }
+
+            getBottomSupportRatio(box, packedItems) {
+                const bottomArea = box.w * box.l;
+                let supportedArea = 0;
+                for (const item of packedItems) {
+                    if (Math.abs((item.y + item.h) - box.y) < 0.01) {
+                        const ix = Math.max(0, Math.min(box.x + box.w, item.x + item.w) - Math.max(box.x, item.x));
+                        const iz = Math.max(0, Math.min(box.z + box.l, item.z + item.l) - Math.max(box.z, item.z));
+                        supportedArea += ix * iz;
+                    }
+                }
+                return supportedArea / bottomArea;
+            }
+
+            centerLayers(packedItems, totalWidth, totalLength, obstacles = []) {
+                const groups = {};
+                for (const item of packedItems) {
+                    if (item.priority === this.PRIORITY.STANDS || item.brick) continue;
+                    const key = Math.round(item.y * 100) / 100;
+                    groups[key] = groups[key] || [];
+                    groups[key].push(item);
+                }
+                Object.values(groups).forEach(layerItems => {
+                    if (!layerItems.length) return;
+                    const minX = Math.min(...layerItems.map(item => item.x));
+                    const maxX = Math.max(...layerItems.map(item => item.x + item.w));
+                    const minZ = Math.min(...layerItems.map(item => item.z));
+                    const maxZ = Math.max(...layerItems.map(item => item.z + item.l));
+                    let dx = totalWidth / 2 - (minX + maxX) / 2;
+                    let dz = totalLength / 2 - (minZ + maxZ) / 2;
+                    if (minX + dx < 0) dx = -minX;
+                    if (maxX + dx > totalWidth) dx = totalWidth - maxX;
+                    if (minZ + dz < 0) dz = -minZ;
+                    if (maxZ + dz > totalLength) dz = totalLength - maxZ;
+                    layerItems.forEach(item => { item.x += dx; item.z += dz; });
+                    const unsafe = layerItems.some(item => {
+                        const collidesItem = packedItems.some(other => !layerItems.includes(other) && this.intersects(item, other));
+                        const collidesObstacle = obstacles.some(obstacle => {
+                            const xOverlap = Math.max(0, Math.min(item.x + item.w, obstacle.x + obstacle.w) - Math.max(item.x, obstacle.x));
+                            const zOverlap = Math.max(0, Math.min(item.z + item.l, obstacle.z + obstacle.l) - Math.max(item.z, obstacle.z));
+                            return xOverlap > 0 && zOverlap > 0 && item.y + item.h > obstacle.y;
+                        });
+                        return collidesItem || collidesObstacle;
+                    });
+                    if (unsafe) layerItems.forEach(item => { item.x -= dx; item.z -= dz; });
+                });
+            }
+
+            intersects(a, b) {
+                return a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.l && a.z + a.l > b.z && a.y < b.y + b.h && a.y + a.h > b.y;
+            }
+
+            getFlatRotations(w, l, h) {
+                const variants = [[w, l, h], [l, w, h]];
+                const seen = new Set();
+                return variants.filter(rotation => { const key = rotation.join(','); if (seen.has(key)) return false; seen.add(key); return true; });
+            }
+
+            getRotations(w, l, h) {
+                const variants = [[w, l, h], [l, w, h], [w, h, l], [l, h, w], [h, w, l], [h, l, w]];
+                const seen = new Set();
+                return variants.filter(rotation => { const key = rotation.join(','); if (seen.has(key)) return false; seen.add(key); return true; });
+            }
+
+            centeredColumnPositions(containerWidth, itemWidth) {
+                const positions = [0];
+                for (let offset = 1; offset * itemWidth + itemWidth / 2 <= containerWidth / 2 + 0.001; offset++) positions.push(offset * itemWidth, -offset * itemWidth);
+                return positions;
+            }
+
+            filterPoints(points, maxWidth, maxLength, maxHeight) {
+                const seen = new Set();
+                return points.filter(point => {
+                    if (point.x >= maxWidth || point.z >= maxLength || point.y >= maxHeight) return false;
+                    const key = `${Math.round(point.x * 100) / 100},${Math.round(point.z * 100) / 100},${Math.round(point.y * 100) / 100}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                }).sort((a, b) => (a.y - b.y) || (Math.abs(a.x - maxWidth / 2) + Math.abs(a.z - maxLength / 2)) - (Math.abs(b.x - maxWidth / 2) + Math.abs(b.z - maxLength / 2)));
+            }
+        }
+
+        const ERGOVENT_PACKING_ENGINE = new ErgoventLogisticsOptimizer();
     </script>
 
     <script id="engine-core">
@@ -1143,331 +1514,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         }
 
         function computePlacements(packs) {
-            if (currentTransport.isPalletLoadedContainer) {
-                return computePalletLoadedContainerPlacements(packs);
-            }
-            if (currentTransport.isFloorLoaded) {
-                return computeFloorLoadedContainerPlacements(packs);
-            }
-
-            const footprint = getAllowedFootprint();
-            const baseHeight = getBaseHeight();
-            const maxY = currentTransport.maxH;
-            const placements = [];
-            const reservedZones = [];
-            const standPacks = packs.filter(pack => isStandProduct(pack.product));
-            const regularPacks = packs.filter(pack => !isStandProduct(pack.product));
-            const state = createPlacementState(footprint, baseHeight);
-
-            placeCenteredStandPacks(standPacks, footprint, { x: 0, z: 0 }, baseHeight, maxY, placements, reservedZones);
-
-            for (const pack of regularPacks) {
-                let placed = false;
-                let attempts = 0;
-                while (!placed && attempts < 40) {
-                    const before = `${state.x}|${state.z}|${state.y}|${state.rowDepth}|${state.layerHeight}|${state.layerIndex}`;
-                    placed = tryPlacePackInFootprint(pack, state, footprint, { x: 0, z: 0 }, maxY, placements, reservedZones);
-                    const after = `${state.x}|${state.z}|${state.y}|${state.rowDepth}|${state.layerHeight}|${state.layerIndex}`;
-                    if (!placed && before === after) break;
-                    attempts++;
-                }
-            }
-
-            centerPlacementLayersInFootprint(placements, footprint, { x: 0, z: 0 });
-
-            const productHeight = placements.reduce((height, placement) => {
-                return Math.max(height, placement.y + placement.h / 2 - baseHeight);
-            }, 0);
-
-            return {
-                placements,
-                productHeight: Math.max(0, productHeight)
-            };
-        }
-
-        function rectsOverlap(a, b) {
-            return a.x1 < b.x2 && a.x2 > b.x1 && a.z1 < b.z2 && a.z2 > b.z1;
-        }
-
-        function placementRect(placement) {
-            return {
-                x1: placement.x - placement.w / 2,
-                x2: placement.x + placement.w / 2,
-                z1: placement.z - placement.l / 2,
-                z2: placement.z + placement.l / 2
-            };
-        }
-
-        function placementOverlapsReserved(placement, reservedZones) {
-            const rect = placementRect(placement);
-            return reservedZones.find(zone => rectsOverlap(rect, zone));
-        }
-
-        function placeCenteredStandPacks(standPacks, footprint, origin, baseHeight, maxY, placements, reservedZones) {
-            if (!standPacks.length) return;
-            const totalWidth = standPacks.reduce((sum, pack) => sum + Math.min(pack.product.boxW, footprint.w), 0);
-            let cursorX = origin.x - totalWidth / 2;
-            standPacks.forEach((pack, index) => {
-                const product = pack.product;
-                const w = Math.min(product.boxW, footprint.w);
-                const l = Math.min(product.boxL, footprint.l);
-                const x = cursorX + w / 2;
-                const z = origin.z;
-                cursorX += w;
-                if (baseHeight + product.boxH > maxY + 0.001) return;
-                placements.push({
-                    pack,
-                    x,
-                    y: baseHeight + product.boxH / 2,
-                    z,
-                    w,
-                    h: product.boxH,
-                    l,
-                    rotated: false,
-                    standReserved: true,
-                    standIndex: index
-                });
-                reservedZones.push({
-                    x1: x - w / 2,
-                    x2: x + w / 2,
-                    z1: z - l / 2,
-                    z2: z + l / 2
-                });
-            });
-        }
-
-        function centerPlacementsInFootprint(placements, footprint, origin) {
-            if (!placements.length) return;
-            const minX = Math.min(...placements.map(placement => placement.x - placement.w / 2));
-            const maxX = Math.max(...placements.map(placement => placement.x + placement.w / 2));
-            const minZ = Math.min(...placements.map(placement => placement.z - placement.l / 2));
-            const maxZ = Math.max(...placements.map(placement => placement.z + placement.l / 2));
-            const shiftX = origin.x - (minX + maxX) / 2;
-            const shiftZ = origin.z - (minZ + maxZ) / 2;
-            const maxShiftX = Math.max(0, (footprint.w - (maxX - minX)) / 2);
-            const maxShiftZ = Math.max(0, (footprint.l - (maxZ - minZ)) / 2);
-            const boundedShiftX = Math.max(-maxShiftX, Math.min(maxShiftX, shiftX));
-            const boundedShiftZ = Math.max(-maxShiftZ, Math.min(maxShiftZ, shiftZ));
-            placements.forEach(placement => {
-                placement.x += boundedShiftX;
-                placement.z += boundedShiftZ;
-            });
-        }
-
-        function centerPlacementLayersInFootprint(placements, footprint, origin) {
-            const groups = new Map();
-            placements.forEach(placement => {
-                const bottom = (placement.y - placement.h / 2).toFixed(3);
-                if (!groups.has(bottom)) groups.set(bottom, []);
-                groups.get(bottom).push(placement);
-            });
-            groups.forEach(layerPlacements => {
-                if (!layerPlacements.some(placement => placement.standReserved)) {
-                    centerPlacementsInFootprint(layerPlacements, footprint, origin);
-                }
-            });
-        }
-
-        function centeredColumnPositions(containerWidth, itemWidth) {
-            const positions = [0];
-            for (let offset = 1; offset * itemWidth + itemWidth / 2 <= containerWidth / 2 + 0.001; offset++) {
-                positions.push(offset * itemWidth, -offset * itemWidth);
-            }
-            return positions;
-        }
-
-        function computeFloorLoadedContainerPlacements(packs) {
-            const footprint = getAllowedFootprint();
-            const maxY = currentTransport.maxH;
-            const placements = [];
-            let rowDepth = 0;
-            let zCursor = -footprint.l / 2;
-            let columnIndex = 0;
-            let columnY = 0;
-
-            for (const pack of packs) {
-                const product = pack.product;
-                const options = orientationOptions(product, footprint, 0).filter(option => option.w <= footprint.w && option.l <= footprint.l);
-                const selected = options[0] || { w: product.boxW, l: product.boxL, rotated: false };
-                let xPositions = centeredColumnPositions(footprint.w, selected.w);
-
-                if (zCursor + selected.l > footprint.l / 2 + 0.001) break;
-                if (columnY + product.boxH > maxY + 0.001) {
-                    columnIndex++;
-                    columnY = 0;
-                }
-                if (columnIndex >= xPositions.length) {
-                    zCursor += Math.max(rowDepth, selected.l);
-                    rowDepth = 0;
-                    columnIndex = 0;
-                    columnY = 0;
-                    if (zCursor + selected.l > footprint.l / 2 + 0.001) break;
-                    xPositions = centeredColumnPositions(footprint.w, selected.w);
-                }
-
-                placements.push({
-                    pack,
-                    x: xPositions[columnIndex],
-                    y: columnY + product.boxH / 2,
-                    z: zCursor + selected.l / 2,
-                    w: selected.w,
-                    h: product.boxH,
-                    l: selected.l,
-                    rotated: selected.rotated
-                });
-                columnY += product.boxH;
-                rowDepth = Math.max(rowDepth, selected.l);
-            }
-
-            const productHeight = placements.reduce((height, placement) => {
-                return Math.max(height, placement.y + placement.h / 2);
-            }, 0);
-
-            return { placements, productHeight };
-        }
-
-        function createPlacementState(footprint, baseHeight) {
-            return {
-                x: -footprint.w / 2,
-                z: -footprint.l / 2,
-                y: baseHeight,
-                rowDepth: 0,
-                layerHeight: 0,
-                layerIndex: 0
-            };
-        }
-
-        function tryPlacePackInFootprint(pack, state, footprint, origin, maxY, placements, reservedZones = []) {
-            const product = pack.product;
-            let { x, z, y, rowDepth, layerHeight, layerIndex } = state;
-            const options = orientationOptions(product, footprint, layerIndex);
-            let selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || options[0];
-
-            if (selected.w > footprint.w || selected.l > footprint.l) return false;
-
-            if (x + selected.w > footprint.w / 2) {
-                x = -footprint.w / 2;
-                z += rowDepth;
-                rowDepth = 0;
-            }
-
-            selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || selected;
-
-            if (z + selected.l > footprint.l / 2) {
-                x = -footprint.w / 2;
-                z = -footprint.l / 2;
-                y += layerHeight;
-                layerHeight = 0;
-                rowDepth = 0;
-                layerIndex++;
-                const layerOptions = orientationOptions(product, footprint, layerIndex);
-                selected = layerOptions.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || layerOptions[0];
-            }
-
-            if (selected.w > footprint.w || selected.l > footprint.l || x + selected.w > footprint.w / 2 || z + selected.l > footprint.l / 2) {
-                return false;
-            }
-
-            const candidate = {
-                x: origin.x + x + selected.w / 2,
-                z: origin.z + z + selected.l / 2,
-                w: selected.w,
-                l: selected.l
-            };
-            const reservedOverlap = placementOverlapsReserved(candidate, reservedZones);
-            if (reservedOverlap) {
-                state.x = Math.max(x + selected.w, reservedOverlap.x2 - origin.x + 0.001);
-                state.z = z;
-                state.y = y;
-                state.rowDepth = rowDepth;
-                state.layerHeight = layerHeight;
-                state.layerIndex = layerIndex;
-                return false;
-            }
-
-            if (y + product.boxH > maxY + 0.001) return false;
-
-            placements.push({
-                pack,
-                x: origin.x + x + selected.w / 2,
-                y: y + product.boxH / 2,
-                z: origin.z + z + selected.l / 2,
-                w: selected.w,
-                h: product.boxH,
-                l: selected.l,
-                rotated: selected.rotated,
-                palletSlotIndex: origin.index
-            });
-
-            state.x = x + selected.w;
-            state.z = z;
-            state.y = y;
-            state.rowDepth = Math.max(rowDepth, selected.l);
-            state.layerHeight = Math.max(layerHeight, product.boxH);
-            state.layerIndex = layerIndex;
-            return true;
-        }
-
-        function computePalletLoadedContainerPlacements(packs) {
-            const grid = getPalletContainerGrid();
-            const palletFootprint = { w: grid.width, l: grid.length };
-            const slots = getPalletSlotCenters();
-            const baseHeight = getBaseHeight();
-            const maxY = currentTransport.maxH;
-            const placements = [];
-            const states = slots.map(() => createPlacementState(palletFootprint, baseHeight));
-            const slotFractions = slots.map(() => 0);
-            const slotReservedZones = slots.map(() => []);
-            let slotIndex = 0;
-
-            for (const pack of packs) {
-                let placed = false;
-                while (slotIndex < slots.length && !placed) {
-                    const perSlotCapacity = Math.max(pack.pcs, productCapacityUnits(pack.product) / grid.count);
-                    const slotFraction = pack.pcs / perSlotCapacity;
-                    if (slotFractions[slotIndex] + slotFraction > 1.000001) {
-                        slotIndex++;
-                        continue;
-                    }
-                    if (isStandProduct(pack.product)) {
-                        const before = placements.length;
-                        placeCenteredStandPacks([pack], palletFootprint, slots[slotIndex], baseHeight, maxY, placements, slotReservedZones[slotIndex]);
-                        placed = placements.length > before;
-                    } else {
-                        placed = tryPlacePackInFootprint(pack, states[slotIndex], palletFootprint, slots[slotIndex], maxY, placements, slotReservedZones[slotIndex]);
-                    }
-                    if (placed) {
-                        slotFractions[slotIndex] += slotFraction;
-                    } else {
-                        slotIndex++;
-                    }
-                }
-                if (!placed) break;
-            }
-
-            const maxProductHeight = placements.reduce((height, placement) => {
-                return Math.max(height, placement.y + placement.h / 2 - baseHeight);
-            }, 0);
-
-            slots.forEach(slot => {
-                const slotPlacements = placements.filter(placement => placement.palletSlotIndex === slot.index);
-                centerPlacementLayersInFootprint(slotPlacements, palletFootprint, slot);
-            });
-
-            return {
-                placements,
-                productHeight: Math.max(0, maxProductHeight)
-            };
-        }
-
-        function orientationOptions(product, footprint, layerIndex) {
-            const normal = { w: product.boxW, l: product.boxL, rotated: false };
-            const rotated = { w: product.boxL, l: product.boxW, rotated: true };
-            const normalCapacity = Math.floor(footprint.w / normal.w) * Math.floor(footprint.l / normal.l);
-            const rotatedCapacity = Math.floor(footprint.w / rotated.w) * Math.floor(footprint.l / rotated.l);
-            if (rotatedCapacity > normalCapacity) return [rotated, normal];
-            if (normalCapacity > rotatedCapacity) return [normal, rotated];
-            return layerIndex % 2 === 0 ? [normal, rotated] : [rotated, normal];
+            return ERGOVENT_PACKING_ENGINE.packForCurrentTransport(packs);
         }
 
         function generateOrder() {
