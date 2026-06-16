@@ -43,7 +43,11 @@
         .dark ::-webkit-scrollbar-thumb { background-color: #4b5563; }
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
-        input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+        input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
+        .stepper-btn { width: 1.75rem; height: 1.75rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; font-weight: 900; line-height: 1; transition: all 0.15s ease; }
+        .stepper-btn:active { transform: scale(0.94); }
         .unit-badge { transition: all 0.2s ease; }
         .unit-badge:hover { transform: translateY(-2px); }
         .dim-line { border-top: 1px solid rgba(255, 103, 31, 0.6); }
@@ -64,7 +68,9 @@
             <button onclick="toggleTheme()" class="text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-brand-orange transition-colors uppercase tracking-wider border border-gray-200 dark:border-gray-600 rounded-full px-4 py-2 bg-gray-50 dark:bg-gray-800">Theme</button>
             <div class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-full px-4 py-1.5 border border-gray-200 dark:border-gray-600">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Shipping EUR</span>
-                <input type="number" id="shipping-price" value="0" min="0" class="w-20 bg-transparent text-right outline-none text-base font-bold text-brand-slate dark:text-white">
+                <button type="button" class="stepper-btn bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600" data-stepper-target="shipping-price" data-stepper-delta="-1">-</button>
+                <input type="number" id="shipping-price" value="0" min="0" step="1" class="w-16 bg-transparent text-center outline-none text-base font-bold text-brand-slate dark:text-white">
+                <button type="button" class="stepper-btn bg-white dark:bg-gray-800 text-brand-orange border border-gray-200 dark:border-gray-600" data-stepper-target="shipping-price" data-stepper-delta="1">+</button>
             </div>
             <select id="transport-type" class="bg-gray-100 dark:bg-gray-700 text-sm font-bold rounded-full px-4 py-2 outline-none border border-gray-200 dark:border-gray-600 dark:text-white"></select>
             <button onclick="generateOrder()" class="bg-brand-orange hover:opacity-90 px-6 py-2 rounded-full text-sm font-bold shadow-lg transition-all text-white uppercase tracking-wider">Generate order</button>
@@ -77,7 +83,9 @@
                 <h2 class="font-extrabold text-brand-slate dark:text-white uppercase tracking-wider text-sm flex items-center">
                     Product Database
                     <span class="text-[11px] font-bold text-gray-500 ml-4 normal-case bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded flex items-center gap-1">
-                        +<input type="number" id="overhang-input" value="10" min="0" max="50" class="w-8 bg-transparent text-center outline-none text-brand-orange border-b border-brand-orange font-bold">cm
+                        <button type="button" class="stepper-btn !w-5 !h-5 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600" data-stepper-target="overhang-input" data-stepper-delta="-1">-</button>
+                        <input type="number" id="overhang-input" value="10" min="0" max="50" step="1" class="w-8 bg-transparent text-center outline-none text-brand-orange border-b border-brand-orange font-bold">cm
+                        <button type="button" class="stepper-btn !w-5 !h-5 bg-white dark:bg-gray-800 text-brand-orange border border-gray-200 dark:border-gray-600" data-stepper-target="overhang-input" data-stepper-delta="1">+</button>
                         <span class="ml-1 text-[9px] uppercase tracking-wider opacity-60">Allowed overhang</span>
                     </span>
                 </h2>
@@ -121,9 +129,9 @@
                     </div>
                 </div>
 
-                <div class="col-span-2 bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <div class="col-span-2 bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mb-2">Unit selection & weight profile (click to switch 3D view)</p>
-                    <div id="pallet-weights-container" class="flex flex-wrap gap-2 text-sm overflow-y-auto max-h-16">
+                    <div id="pallet-weights-container" class="flex flex-wrap gap-2 text-sm overflow-visible min-h-[7rem]">
                         <span class="text-gray-400 text-xs italic">No active loading configurations</span>
                     </div>
                 </div>
@@ -193,7 +201,7 @@ LINEO PRO AC,LP125.220301,477905154189,841490,ERGOVENT LINEO PRO CONDI-125 conne
 LINEO PRO AC,LP150.320301,4779051540952,841490,ERGOVENT LINEO-PRO CONDI-150 connected (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
 LINEO PRO AC,LP160.320301,4779051540891,841490,ERGOVENT LINEO PRO CONDI-160 (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
 LINEO 500 / 600,LN75.120.101,4779051540402,841490,ERGOVENT LINEO-500,3.4,2.96,18,54,23,1,18,54,23,60,6,10
-LINEO 500 / 600,LN75.120.201,4779051540426,841490,ERGOVENT LINEO-600,3.54,2.98,17,64,24,1,17,64,24,60,6,10
+LINEO 500 / 600,LN75.120.201,4779051540426,841490,ERGOVENT LINEO 600 HORIZONTAL connection,3.54,2.98,17,64,24,1,17,64,24,60,6,10
 LINEO 500 / 600,LN75.120.101,4779051540433,841490,ERGOVENT LINEO 600 VERTICAL connection,3.54,2.54,22,64,24,1,22,64,24,60,6,10
 Moulages 1 slot,LPM.120.303,4779051540778,841490,Moulage of ERGOVENT LINEO-PRO PUZZLE diffuser (1 slot x 200 mm),1.28,0.88,10,27,20,1,11,32,27,,,
 Moulages 1 slot,LPM.120.302,4779051540785,841490,Moulage of ERGOVENT LINEO-PRO PUZZLE diffuser (1 slot x 500 mm),3,2.32,10,27,50,1,12,68,23,,,
@@ -284,6 +292,18 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 rule: "If LINEO models fit by pallet length and width, alternate layers by 90 degrees.",
                 alternatingLayers: true
             },
+            rondoKvadroFullLayer: {
+                rule: "Pallet orders for RONDO/KVADRO/COANDA gypsum diffusers should complete stable full layers.",
+                smallModelCodes: ["RN100", "RN125", "KV100", "KV125", "RN100.CO", "RN125.CO"],
+                smallLayerUnits: 24,
+                largeModelCodes: ["RN150", "RN160"],
+                largeLayerUnits: 18,
+                appliesToPalletOrdersOnly: true
+            },
+            centering: {
+                palletRule: "Products placed on pallets are centered so opposite-side overhang is identical. Partial layers are placed in the middle, not from one side.",
+                floorLoadedContainerRule: "Floor-loaded containers are filled from the centered bottom position at the farthest wall. One vertical column is filled before moving to the next column."
+            },
             placementPriority: [
                 { rank: 1, label: "Metal stand and traffic light stand", rule: "Always on the bottom. Other items can be placed around them, never below them." },
                 { rank: 2, label: "Gypsum diffusers" },
@@ -300,11 +320,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         const GROUP_ORDER = [
             "Gypsum diffusers",
             "LINEO",
-            "LINEO PRO diffusers (1 slot)",
-            "LINEO PRO diffusers (2 slot)",
+            "LINEO PRO ventilation",
             "LINEO PRO CONDI diffusers",
-            "Moulages 1 slot",
-            "Moulages 2 slot",
+            "Moulages",
             "AERO PRO",
             "Spare parts and accessories (Gypsum and LINEO)",
             "Marketing displays"
@@ -313,11 +331,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         const GROUP_COLORS = {
             "Gypsum diffusers": 0xf1f5f9,
             "LINEO": 0x64748b,
-            "LINEO PRO diffusers (1 slot)": 0x0f172a,
-            "LINEO PRO diffusers (2 slot)": 0x1e293b,
+            "LINEO PRO ventilation": 0x0f172a,
             "LINEO PRO CONDI diffusers": 0x334155,
-            "Moulages 1 slot": 0x10b981,
-            "Moulages 2 slot": 0x059669,
+            "Moulages": 0x10b981,
             "AERO PRO": 0x8b5cf6,
             "Spare parts and accessories (Gypsum and LINEO)": 0xff671f,
             "Marketing displays": 0xf59e0b
@@ -390,10 +406,8 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             if (raw.includes("Gypsum diffusers")) return "Gypsum diffusers";
             if (raw.includes("LINEO 500")) return "LINEO";
             if (raw.includes("LINEO PRO AC")) return "LINEO PRO CONDI diffusers";
-            if (raw.includes("LINEO PRO ventilation - 1 slot")) return "LINEO PRO diffusers (1 slot)";
-            if (raw.includes("LINEO PRO ventilation - 2 slot")) return "LINEO PRO diffusers (2 slot)";
-            if (raw.includes("Moulages 1 slot")) return "Moulages 1 slot";
-            if (raw.includes("Moulages 2 slot")) return "Moulages 2 slot";
+            if (raw.includes("LINEO PRO ventilation")) return "LINEO PRO ventilation";
+            if (raw.includes("Moulages")) return "Moulages";
             if (raw.includes("AERO-PRO")) return "AERO PRO";
             if (raw.includes("Marketing")) return "Marketing displays";
             return raw || "Spare parts and accessories (Gypsum and LINEO)";
@@ -401,9 +415,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function priorityForGroup(group) {
             if (group === "Gypsum diffusers") return 2;
-            if (group === "LINEO" || group === "LINEO PRO diffusers (1 slot)" || group === "LINEO PRO diffusers (2 slot)" || group === "LINEO PRO CONDI diffusers") return 3;
+            if (group === "LINEO" || group === "LINEO PRO ventilation" || group === "LINEO PRO CONDI diffusers") return 3;
             if (group === "AERO PRO") return 4;
-            if (group === "Moulages 1 slot" || group === "Moulages 2 slot") return 5;
+            if (group === "Moulages") return 5;
             if (group === "Marketing displays") return 6;
             return 7;
         }
@@ -412,6 +426,15 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             const name = product.name.toUpperCase();
             if (name.includes("METAL STAND") || name.includes("TRAFFIC LIGHT")) return 1;
             return priorityForGroup(product.cat);
+        }
+
+        function productSubGroup(rawCategory) {
+            const raw = (rawCategory || "").trim();
+            if (raw.includes("LINEO PRO ventilation - 1 slot")) return "1 slot";
+            if (raw.includes("LINEO PRO ventilation - 2 slot")) return "2 slot";
+            if (raw.includes("Moulages 1 slot")) return "1 slot";
+            if (raw.includes("Moulages 2 slot")) return "2 slot";
+            return "";
         }
 
         function productSortRank(product) {
@@ -423,22 +446,18 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             }
             if (product.cat === "LINEO") {
                 if (name.includes("LINEO-500")) return 0;
-                if (name.includes("LINEO-600")) return 1;
+                if (name.includes("LINEO-600") || name.includes("HORIZONTAL")) return 1;
                 if (name.includes("LINEO 600 VERTICAL")) return 2;
                 return 999;
             }
-            if (product.cat === "LINEO PRO diffusers (1 slot)") {
+            if (product.cat === "LINEO PRO ventilation") {
+                const subGroupOffset = product.subGroup === "2 slot" ? 100 : 0;
                 if (name.includes("SINGLE") && name.includes("75")) return 0;
                 if (name.includes("SINGLE") && name.includes("90")) return 1;
                 if (name.includes("PROFILE") && name.includes("75")) return 2;
                 if (name.includes("PROFILE") && name.includes("90")) return 3;
-                if (name.includes("PUZZLE") && name.includes("75")) return 4;
-                if (name.includes("PUZZLE") && name.includes("90")) return 5;
-                return 999;
-            }
-            if (product.cat === "LINEO PRO diffusers (2 slot)") {
-                if (name.includes("PUZZLE") && name.includes("75")) return 0;
-                if (name.includes("PUZZLE") && name.includes("90")) return 1;
+                if (name.includes("PUZZLE") && name.includes("75")) return subGroupOffset + 4;
+                if (name.includes("PUZZLE") && name.includes("90")) return subGroupOffset + 5;
                 return 999;
             }
             if (product.cat === "LINEO PRO CONDI diffusers") {
@@ -448,13 +467,14 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 if (name.includes("160")) return 3;
                 return 999;
             }
-            if (product.cat === "Moulages 1 slot" || product.cat === "Moulages 2 slot") {
-                if (name.includes("200 MM")) return 0;
-                if (name.includes("500 MM")) return 1;
-                if (name.includes("1050 MM") || name.includes("1000 MM")) return 2;
-                if (name.includes("ROUNDED")) return 3;
-                if (name.includes("RIGHT ANGLE")) return 4;
-                return 999;
+            if (product.cat === "Moulages") {
+                const subGroupOffset = product.subGroup === "2 slot" ? 100 : 0;
+                if (name.includes("200 MM")) return subGroupOffset + 0;
+                if (name.includes("500 MM")) return subGroupOffset + 1;
+                if (name.includes("1050 MM") || name.includes("1000 MM")) return subGroupOffset + 2;
+                if (name.includes("ROUNDED")) return subGroupOffset + 3;
+                if (name.includes("RIGHT ANGLE")) return subGroupOffset + 4;
+                return subGroupOffset + 999;
             }
             if (product.cat === "Spare parts and accessories (Gypsum and LINEO)") {
                 if (code.startsWith("LN") || code.startsWith("LP")) return 100;
@@ -496,6 +516,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             document.getElementById("overhang-input").addEventListener("input", calculateROI);
 
             buildProductUI();
+            setupNumberSteppers();
             initChart();
             init3D();
             calculateROI();
@@ -546,6 +567,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     hs: row[3] || "841490",
                     name: row[4] || code,
                     cat: group,
+                    subGroup: productSubGroup(row[0]),
                     gw: parseNumber(row[5], 0),
                     nw: parseNumber(row[6], 0),
                     packQty,
@@ -567,6 +589,49 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 if (rankDiff !== 0) return rankDiff;
                 return a.name.localeCompare(b.name);
             });
+        }
+
+        function renderProductRows(products) {
+            let previousSubGroup = null;
+            return products.map(product => {
+                const showSeparator = product.subGroup && product.subGroup !== previousSubGroup;
+                previousSubGroup = product.subGroup || previousSubGroup;
+                return `
+                    ${showSeparator ? `
+                        <tr class="bg-gray-50 dark:bg-gray-800/80">
+                            <td colspan="7" class="px-3 py-2">
+                                <div class="flex items-center gap-3 text-[9px] uppercase tracking-[0.18em] font-black text-gray-400 dark:text-gray-500">
+                                    <span class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></span>
+                                    <span>${escapeHtml(product.subGroup)}</span>
+                                    <span class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></span>
+                                </div>
+                            </td>
+                        </tr>
+                    ` : ""}
+                    <tr class="hover:bg-orange-50/40 dark:hover:bg-gray-800/50 transition-colors">
+                        <td class="py-2 px-2 text-center">
+                            <button type="button" class="product-info w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center text-[10px] font-bold cursor-help mx-auto hover:bg-brand-orange hover:text-white"
+                                data-id="${escapeHtml(product.id)}">?</button>
+                        </td>
+                        <td class="py-2 px-3 font-mono text-[10px]">
+                            <span class="font-bold text-gray-700 dark:text-gray-300">${escapeHtml(product.code)}</span><br>
+                            <span class="text-gray-400">HS: ${escapeHtml(product.hs)}</span>
+                        </td>
+                        <td class="py-2 px-3 font-bold text-brand-slate dark:text-gray-200 min-w-[320px] max-w-[520px] whitespace-normal leading-snug break-words">${escapeHtml(product.name)}</td>
+                        <td class="py-2 px-3 text-center font-mono">${product.packQty}</td>
+                        <td class="py-2 px-3 text-center font-mono text-[10px] text-gray-500">${product.nw.toFixed(2)} / ${product.gw.toFixed(2)}</td>
+                        <td class="py-2 px-3 text-center font-mono text-[10px] text-emerald-600 dark:text-emerald-400" id="ship-${escapeHtml(product.id)}">-</td>
+                        <td class="py-2 px-3 text-right">
+                            <div class="inline-flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full px-1 py-0.5">
+                                <button type="button" class="stepper-btn !w-6 !h-6 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-300" data-stepper-target="qty-${escapeHtml(product.id)}" data-stepper-delta="-${product.packQty}">-</button>
+                                <input id="qty-${escapeHtml(product.id)}" type="number" min="0" step="${product.packQty}" value="0" data-id="${escapeHtml(product.id)}"
+                                    class="qty-input w-14 bg-transparent px-1 py-1 text-center font-mono font-bold text-brand-slate dark:text-white outline-none">
+                                <button type="button" class="stepper-btn !w-6 !h-6 bg-gray-50 dark:bg-gray-800 text-brand-orange" data-stepper-target="qty-${escapeHtml(product.id)}" data-stepper-delta="${product.packQty}">+</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
         }
 
         function buildProductUI() {
@@ -604,26 +669,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-                                ${products.map(product => `
-                                    <tr class="hover:bg-orange-50/40 dark:hover:bg-gray-800/50 transition-colors">
-                                        <td class="py-2 px-2 text-center">
-                                            <button type="button" class="product-info w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center text-[10px] font-bold cursor-help mx-auto hover:bg-brand-orange hover:text-white"
-                                                data-id="${escapeHtml(product.id)}">?</button>
-                                        </td>
-                                        <td class="py-2 px-3 font-mono text-[10px]">
-                                            <span class="font-bold text-gray-700 dark:text-gray-300">${escapeHtml(product.code)}</span><br>
-                                            <span class="text-gray-400">HS: ${escapeHtml(product.hs)}</span>
-                                        </td>
-                                        <td class="py-2 px-3 font-bold text-brand-slate dark:text-gray-200 min-w-[320px] max-w-[520px] whitespace-normal leading-snug break-words">${escapeHtml(product.name)}</td>
-                                        <td class="py-2 px-3 text-center font-mono">${product.packQty}</td>
-                                        <td class="py-2 px-3 text-center font-mono text-[10px] text-gray-500">${product.nw.toFixed(2)} / ${product.gw.toFixed(2)}</td>
-                                        <td class="py-2 px-3 text-center font-mono text-[10px] text-emerald-600 dark:text-emerald-400" id="ship-${escapeHtml(product.id)}">-</td>
-                                        <td class="py-2 px-3 text-right">
-                                            <input type="number" min="0" step="${product.packQty}" value="0" data-id="${escapeHtml(product.id)}"
-                                                class="qty-input w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold focus:border-brand-orange dark:focus:border-brand-orange outline-none">
-                                        </td>
-                                    </tr>
-                                `).join("")}
+                                ${renderProductRows(products)}
                             </tbody>
                         </table>
                     </div>
@@ -649,6 +695,22 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             document.querySelectorAll(".product-info").forEach(button => {
                 button.addEventListener("mouseenter", event => showProductTooltip(event, button.dataset.id));
                 button.addEventListener("mouseleave", hideTooltip);
+            });
+        }
+
+        function setupNumberSteppers() {
+            document.querySelectorAll("[data-stepper-target]").forEach(button => {
+                button.addEventListener("click", () => {
+                    const input = document.getElementById(button.dataset.stepperTarget);
+                    if (!input) return;
+                    const delta = parseNumber(button.dataset.stepperDelta, parseNumber(input.step, 1) || 1);
+                    const min = input.min === "" ? -Infinity : parseNumber(input.min, -Infinity);
+                    const max = input.max === "" ? Infinity : parseNumber(input.max, Infinity);
+                    const current = parseNumber(input.value, 0);
+                    input.value = String(Math.min(max, Math.max(min, current + delta)));
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                    input.dispatchEvent(new Event("change", { bubbles: true }));
+                });
             });
         }
 
@@ -956,13 +1018,41 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         function updateWarnings() {
             const panel = document.getElementById("overpack-warning");
             const warningText = document.getElementById("warning-text");
+            const warnings = [];
             const inefficientUnit = partitionedUnits.find((unit, index) => index > 0 && unit.efficiency < 20);
             if (inefficientUnit) {
+                warnings.push(`Inefficient space: one unit is only ${inefficientUnit.efficiency.toFixed(1)}% loaded.`);
+            }
+            const fullLayerWarning = getGypsumFullLayerWarning();
+            if (fullLayerWarning) warnings.push(fullLayerWarning);
+
+            if (warnings.length) {
                 panel.classList.remove("hidden");
-                warningText.textContent = `Inefficient space: one unit is only ${inefficientUnit.efficiency.toFixed(1)}% loaded.`;
+                warningText.textContent = warnings.join(" ");
             } else {
                 panel.classList.add("hidden");
             }
+        }
+
+        function getGypsumFullLayerWarning() {
+            if (!(currentTransport.type === "pallet" || currentTransport.isPalletLoadedContainer)) return "";
+            const rules = PACKAGING_RULES.rondoKvadroFullLayer;
+            const smallTotal = productData
+                .filter(product => rules.smallModelCodes.includes(product.code))
+                .reduce((sum, product) => sum + (quantities[product.id]?.pcs || 0), 0);
+            const largeTotal = productData
+                .filter(product => rules.largeModelCodes.includes(product.code))
+                .reduce((sum, product) => sum + (quantities[product.id]?.pcs || 0), 0);
+            const messages = [];
+            const smallRemainder = smallTotal % rules.smallLayerUnits;
+            if (smallRemainder > 0) {
+                messages.push(`Add ${rules.smallLayerUnits - smallRemainder} pcs of RONDO/KVADRO/COANDA 100/125 to complete a stable ${rules.smallLayerUnits} pcs layer.`);
+            }
+            const largeRemainder = largeTotal % rules.largeLayerUnits;
+            if (largeRemainder > 0) {
+                messages.push(`Add ${rules.largeLayerUnits - largeRemainder} pcs of RONDO 150/160 to complete a stable ${rules.largeLayerUnits} pcs layer.`);
+            }
+            return messages.join(" ");
         }
 
         function switchActiveView(index) {
@@ -980,6 +1070,9 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
         function computePlacements(packs) {
             if (currentTransport.isPalletLoadedContainer) {
                 return computePalletLoadedContainerPlacements(packs);
+            }
+            if (currentTransport.isFloorLoaded) {
+                return computeFloorLoadedContainerPlacements(packs);
             }
 
             const footprint = getAllowedFootprint();
@@ -1034,10 +1127,88 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 }
             });
 
+            centerPlacementsInFootprint(placements, footprint, { x: 0, z: 0 });
+
             return {
                 placements,
                 productHeight: Math.max(0, y + layerHeight - baseHeight)
             };
+        }
+
+        function centerPlacementsInFootprint(placements, footprint, origin) {
+            if (!placements.length) return;
+            const minX = Math.min(...placements.map(placement => placement.x - placement.w / 2));
+            const maxX = Math.max(...placements.map(placement => placement.x + placement.w / 2));
+            const minZ = Math.min(...placements.map(placement => placement.z - placement.l / 2));
+            const maxZ = Math.max(...placements.map(placement => placement.z + placement.l / 2));
+            const shiftX = origin.x - (minX + maxX) / 2;
+            const shiftZ = origin.z - (minZ + maxZ) / 2;
+            const maxShiftX = Math.max(0, (footprint.w - (maxX - minX)) / 2);
+            const maxShiftZ = Math.max(0, (footprint.l - (maxZ - minZ)) / 2);
+            const boundedShiftX = Math.max(-maxShiftX, Math.min(maxShiftX, shiftX));
+            const boundedShiftZ = Math.max(-maxShiftZ, Math.min(maxShiftZ, shiftZ));
+            placements.forEach(placement => {
+                placement.x += boundedShiftX;
+                placement.z += boundedShiftZ;
+            });
+        }
+
+        function centeredColumnPositions(containerWidth, itemWidth) {
+            const positions = [0];
+            for (let offset = 1; offset * itemWidth + itemWidth / 2 <= containerWidth / 2 + 0.001; offset++) {
+                positions.push(offset * itemWidth, -offset * itemWidth);
+            }
+            return positions;
+        }
+
+        function computeFloorLoadedContainerPlacements(packs) {
+            const footprint = getAllowedFootprint();
+            const maxY = currentTransport.maxH;
+            const placements = [];
+            let rowDepth = 0;
+            let zCursor = -footprint.l / 2;
+            let columnIndex = 0;
+            let columnY = 0;
+
+            for (const pack of packs) {
+                const product = pack.product;
+                const options = orientationOptions(product, footprint, 0).filter(option => option.w <= footprint.w && option.l <= footprint.l);
+                const selected = options[0] || { w: product.boxW, l: product.boxL, rotated: false };
+                let xPositions = centeredColumnPositions(footprint.w, selected.w);
+
+                if (zCursor + selected.l > footprint.l / 2 + 0.001) break;
+                if (columnY + product.boxH > maxY + 0.001) {
+                    columnIndex++;
+                    columnY = 0;
+                }
+                if (columnIndex >= xPositions.length) {
+                    zCursor += Math.max(rowDepth, selected.l);
+                    rowDepth = 0;
+                    columnIndex = 0;
+                    columnY = 0;
+                    if (zCursor + selected.l > footprint.l / 2 + 0.001) break;
+                    xPositions = centeredColumnPositions(footprint.w, selected.w);
+                }
+
+                placements.push({
+                    pack,
+                    x: xPositions[columnIndex],
+                    y: columnY + product.boxH / 2,
+                    z: zCursor + selected.l / 2,
+                    w: selected.w,
+                    h: product.boxH,
+                    l: selected.l,
+                    rotated: selected.rotated
+                });
+                columnY += product.boxH;
+                rowDepth = Math.max(rowDepth, selected.l);
+            }
+
+            const productHeight = placements.reduce((height, placement) => {
+                return Math.max(height, placement.y + placement.h / 2);
+            }, 0);
+
+            return { placements, productHeight };
         }
 
         function createPlacementState(footprint, baseHeight) {
@@ -1138,6 +1309,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             const maxProductHeight = placements.reduce((height, placement) => {
                 return Math.max(height, placement.y + placement.h / 2 - baseHeight);
             }, 0);
+
+            slots.forEach(slot => {
+                const slotPlacements = placements.filter(placement => placement.palletSlotIndex === slot.index);
+                centerPlacementsInFootprint(slotPlacements, palletFootprint, slot);
+            });
 
             return {
                 placements,
