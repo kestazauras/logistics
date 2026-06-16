@@ -147,9 +147,11 @@
         </section>
     </main>
 
-    <!-- Editable logistics model block. Values are in centimeters unless stated otherwise. -->
-    <script id="logistics-config">
-        const RAW_LOGISTICS_CSV = `TYPE,"Weight, net kg","Height, cm","Width, cm","Length, cm","Internal height, mm","Internal width, mm","Internal length, mm","Max height, cm"
+    <!-- ====================================================================== -->
+    <!-- LOADING OPTIONS BLOCK                                                  -->
+    <!-- Paste the full "logist" CSV/TSV here. Keep the first row as column names. -->
+    <!-- ====================================================================== -->
+    <script id="loading-options-csv" type="text/plain">TYPE,"Weight, net kg","Height, cm","Width, cm","Length, cm","Internal height, mm","Internal width, mm","Internal length, mm","Max height, cm"
 FIN pallet high (2.5m),20,15,100,120,,,,250
 FIN pallet low (2.2m),20,15,100,120,,,,225
 EUR pallet high (2.2m),20,15,80,120,,,,220
@@ -157,7 +159,12 @@ EUR pallet low (1.95m),20,15,80,120,,,,195
 20HQ Container (Pallets),2315,,,,2390,2352,5898,229
 20HQ Container (Floor),2315,,,,2390,2352,5898,229
 40HQ Container (Pallets),3900,,,,2390,2352,12030,229
-40HQ Container (Floor),3900,,,,2390,2352,12030,229`;
+40HQ Container (Floor),3900,,,,2390,2352,12030,229
+    </script>
+
+    <!-- Loading options loader. Calculator/3D code reads from the editable block above. -->
+    <script id="logistics-config">
+        const RAW_LOGISTICS_CSV = document.getElementById("loading-options-csv").textContent.trim();
     </script>
 
     <!-- ====================================================================== -->
@@ -255,6 +262,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 splitAcrossSides: true,
                 floorLoadedContainerOverhangAllowed: false
             },
+            palletLoadedContainer: {
+                rule: "Pallets inside a pallet-loaded container must fit within the container internal length and width. Pallet plus cargo height must not exceed internal height minus 10 cm.",
+                palletFootprintCm: { width: 100, length: 120, height: 15 },
+                showPalletsInsideContainer: true
+            },
             rondoKvadro100125: {
                 appliesToCodes: ["RN100", "RN125", "KV100", "KV125", "RN100.CO", "RN125.CO"],
                 layerPattern: [
@@ -264,7 +276,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 alternatingLayers: true
             },
             floorLoadedContainer: {
-                rule: "No pallet and no overhang. Container internal length, width and height are the hard limits.",
+                rule: "No pallet and no overhang. Products are stacked from the container floor up. Container internal length, width and height are the hard limits.",
                 example: "40HQ floor-loaded container should be evaluated by internal dimensions only for RONDO/KVADRO 100/125 capacity."
             },
             lineoLayering: {
@@ -495,16 +507,20 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 const lower = name.toLowerCase();
                 const isContainer = lower.includes("container");
                 const isFloorLoaded = lower.includes("floor");
+                const isPalletLoadedContainer = isContainer && lower.includes("pallet");
+                const internalHeight = parseNumber(row[5], 0) / 10;
                 return {
                     id: name.toUpperCase().replace(/[^A-Z0-9]+/g, "_"),
                     name,
                     weight: parseNumber(row[1], 0),
-                    palletHeight: parseNumber(row[2], isContainer ? 0 : 15),
+                    palletHeight: parseNumber(row[2], isPalletLoadedContainer ? PACKAGING_RULES.palletLoadedContainer.palletFootprintCm.height : (isContainer ? 0 : 15)),
                     w: parseNumber(row[3], isContainer ? parseNumber(row[6], 0) / 10 : 100),
                     l: parseNumber(row[4], isContainer ? parseNumber(row[7], 0) / 10 : 120),
-                    maxH: parseNumber(row[8], isContainer ? (parseNumber(row[5], 0) / 10) - 10 : 250),
+                    maxH: parseNumber(row[8], isContainer ? internalHeight - 10 : 250),
                     type: isContainer ? "container" : "pallet",
-                    isFloorLoaded
+                    isFloorLoaded,
+                    isPalletLoadedContainer,
+                    internalHeight
                 };
             }).filter(row => row.name);
         }
@@ -704,8 +720,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function getAllowedFootprint() {
             const overhang = getOverhang();
-            const canOverhang = currentTransport.type === "pallet"
-                && !(currentTransport.isFloorLoaded && !PACKAGING_RULES.overhang.floorLoadedContainerOverhangAllowed);
+            const canOverhang = currentTransport.type === "pallet";
             return {
                 w: currentTransport.w + (canOverhang ? overhang : 0),
                 l: currentTransport.l + (canOverhang ? overhang : 0)
@@ -714,6 +729,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function getBaseHeight() {
             if (currentTransport.isFloorLoaded) return 0;
+            if (currentTransport.isPalletLoadedContainer) return currentTransport.palletHeight;
             return currentTransport.type === "pallet" ? currentTransport.palletHeight : 0;
         }
 
@@ -1167,6 +1183,35 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             interactiveBoxes = [];
         }
 
+        function addPalletMesh(width, height, length, x, z) {
+            const palletBase = new THREE.Mesh(
+                new THREE.BoxGeometry(width, height, length),
+                new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 })
+            );
+            palletBase.position.set(x, height / 2, z);
+            palletBase.castShadow = true;
+            palletBase.receiveShadow = true;
+            stackGroup.add(palletBase);
+        }
+
+        function renderTransportBase(footprint, baseHeight) {
+            if (baseHeight <= 0) return;
+            if (currentTransport.isPalletLoadedContainer && PACKAGING_RULES.palletLoadedContainer.showPalletsInsideContainer) {
+                const pallet = PACKAGING_RULES.palletLoadedContainer.palletFootprintCm;
+                const columns = Math.max(1, Math.floor(currentTransport.w / pallet.width));
+                const rows = Math.max(1, Math.floor(currentTransport.l / pallet.length));
+                const startX = -((columns - 1) * pallet.width) / 2;
+                const startZ = -((rows - 1) * pallet.length) / 2;
+                for (let row = 0; row < rows; row++) {
+                    for (let column = 0; column < columns; column++) {
+                        addPalletMesh(pallet.width, baseHeight, pallet.length, startX + column * pallet.width, startZ + row * pallet.length);
+                    }
+                }
+                return;
+            }
+            addPalletMesh(currentTransport.w, baseHeight, currentTransport.l, 0, 0);
+        }
+
         function renderStack3D(packs) {
             if (!scene) return;
             clearStack();
@@ -1174,19 +1219,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             const footprint = getAllowedFootprint();
             const baseHeight = getBaseHeight();
             const maxH = currentTransport.maxH;
-            const actualBaseW = currentTransport.w;
-            const actualBaseL = currentTransport.l;
-
-            if (baseHeight > 0) {
-                const palletBase = new THREE.Mesh(
-                    new THREE.BoxGeometry(actualBaseW, baseHeight, actualBaseL),
-                    new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 })
-                );
-                palletBase.position.y = baseHeight / 2;
-                palletBase.castShadow = true;
-                palletBase.receiveShadow = true;
-                stackGroup.add(palletBase);
-            }
+            renderTransportBase(footprint, baseHeight);
 
             const limitLines = new THREE.LineSegments(
                 new THREE.EdgesGeometry(new THREE.BoxGeometry(footprint.w, maxH, footprint.l)),
