@@ -305,7 +305,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 floorLoadedContainerRule: "Floor-loaded containers are filled from the centered bottom position at the farthest wall. One vertical column is filled before moving to the next column."
             },
             placementPriority: [
-                { rank: 1, label: "Metal stand and traffic light stand", rule: "Always on the bottom. Other items can be placed around them, never below them." },
+                { rank: 1, label: "Metal stand and traffic light stand", rule: "Always centered on the pallet bottom. Other items can be placed around them if they fit, but never below or on top of them." },
                 { rank: 2, label: "Gypsum diffusers" },
                 { rank: 3, label: "LINEO PRO diffusers and LINEO diffusers" },
                 { rank: 4, label: "AERO PRO products" },
@@ -435,8 +435,13 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
 
         function productPlacementPriority(product) {
             const name = product.name.toUpperCase();
-            if (name.includes("METAL STAND") || name.includes("TRAFFIC LIGHT")) return 1;
+            if (isStandProduct(product)) return 1;
             return priorityForGroup(product.cat);
+        }
+
+        function isStandProduct(product) {
+            const name = product.name.toUpperCase();
+            return name.includes("METAL STAND") || name.includes("TRAFFIC LIGHT");
         }
 
         function paletteColor(paletteName, index) {
@@ -1149,60 +1154,86 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             const baseHeight = getBaseHeight();
             const maxY = currentTransport.maxH;
             const placements = [];
-            let x = -footprint.w / 2;
-            let z = -footprint.l / 2;
-            let y = baseHeight;
-            let rowDepth = 0;
-            let layerHeight = 0;
-            let layerIndex = 0;
+            const reservedZones = [];
+            const standPacks = packs.filter(pack => isStandProduct(pack.product));
+            const regularPacks = packs.filter(pack => !isStandProduct(pack.product));
+            const state = createPlacementState(footprint, baseHeight);
 
-            packs.forEach(pack => {
-                const product = pack.product;
-                const options = orientationOptions(product, footprint, layerIndex);
-                let selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || options[0];
+            placeCenteredStandPacks(standPacks, footprint, { x: 0, z: 0 }, baseHeight, maxY, placements, reservedZones);
 
-                if (x + selected.w > footprint.w / 2) {
-                    x = -footprint.w / 2;
-                    z += rowDepth;
-                    rowDepth = 0;
+            for (const pack of regularPacks) {
+                let placed = false;
+                let attempts = 0;
+                while (!placed && attempts < 40) {
+                    const before = `${state.x}|${state.z}|${state.y}|${state.rowDepth}|${state.layerHeight}|${state.layerIndex}`;
+                    placed = tryPlacePackInFootprint(pack, state, footprint, { x: 0, z: 0 }, maxY, placements, reservedZones);
+                    const after = `${state.x}|${state.z}|${state.y}|${state.rowDepth}|${state.layerHeight}|${state.layerIndex}`;
+                    if (!placed && before === after) break;
+                    attempts++;
                 }
-
-                selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || selected;
-
-                if (z + selected.l > footprint.l / 2) {
-                    x = -footprint.w / 2;
-                    z = -footprint.l / 2;
-                    y += layerHeight;
-                    layerHeight = 0;
-                    rowDepth = 0;
-                    layerIndex++;
-                    const layerOptions = orientationOptions(product, footprint, layerIndex);
-                    selected = layerOptions.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || layerOptions[0];
-                }
-
-                if (y + product.boxH <= maxY + 0.001) {
-                    placements.push({
-                        pack,
-                        x: x + selected.w / 2,
-                        y: y + product.boxH / 2,
-                        z: z + selected.l / 2,
-                        w: selected.w,
-                        h: product.boxH,
-                        l: selected.l,
-                        rotated: selected.rotated
-                    });
-                    x += selected.w;
-                    rowDepth = Math.max(rowDepth, selected.l);
-                    layerHeight = Math.max(layerHeight, product.boxH);
-                }
-            });
+            }
 
             centerPlacementLayersInFootprint(placements, footprint, { x: 0, z: 0 });
 
+            const productHeight = placements.reduce((height, placement) => {
+                return Math.max(height, placement.y + placement.h / 2 - baseHeight);
+            }, 0);
+
             return {
                 placements,
-                productHeight: Math.max(0, y + layerHeight - baseHeight)
+                productHeight: Math.max(0, productHeight)
             };
+        }
+
+        function rectsOverlap(a, b) {
+            return a.x1 < b.x2 && a.x2 > b.x1 && a.z1 < b.z2 && a.z2 > b.z1;
+        }
+
+        function placementRect(placement) {
+            return {
+                x1: placement.x - placement.w / 2,
+                x2: placement.x + placement.w / 2,
+                z1: placement.z - placement.l / 2,
+                z2: placement.z + placement.l / 2
+            };
+        }
+
+        function placementOverlapsReserved(placement, reservedZones) {
+            const rect = placementRect(placement);
+            return reservedZones.find(zone => rectsOverlap(rect, zone));
+        }
+
+        function placeCenteredStandPacks(standPacks, footprint, origin, baseHeight, maxY, placements, reservedZones) {
+            if (!standPacks.length) return;
+            const totalWidth = standPacks.reduce((sum, pack) => sum + Math.min(pack.product.boxW, footprint.w), 0);
+            let cursorX = origin.x - totalWidth / 2;
+            standPacks.forEach((pack, index) => {
+                const product = pack.product;
+                const w = Math.min(product.boxW, footprint.w);
+                const l = Math.min(product.boxL, footprint.l);
+                const x = cursorX + w / 2;
+                const z = origin.z;
+                cursorX += w;
+                if (baseHeight + product.boxH > maxY + 0.001) return;
+                placements.push({
+                    pack,
+                    x,
+                    y: baseHeight + product.boxH / 2,
+                    z,
+                    w,
+                    h: product.boxH,
+                    l,
+                    rotated: false,
+                    standReserved: true,
+                    standIndex: index
+                });
+                reservedZones.push({
+                    x1: x - w / 2,
+                    x2: x + w / 2,
+                    z1: z - l / 2,
+                    z2: z + l / 2
+                });
+            });
         }
 
         function centerPlacementsInFootprint(placements, footprint, origin) {
@@ -1230,7 +1261,11 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 if (!groups.has(bottom)) groups.set(bottom, []);
                 groups.get(bottom).push(placement);
             });
-            groups.forEach(layerPlacements => centerPlacementsInFootprint(layerPlacements, footprint, origin));
+            groups.forEach(layerPlacements => {
+                if (!layerPlacements.some(placement => placement.standReserved)) {
+                    centerPlacementsInFootprint(layerPlacements, footprint, origin);
+                }
+            });
         }
 
         function centeredColumnPositions(containerWidth, itemWidth) {
@@ -1302,7 +1337,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             };
         }
 
-        function tryPlacePackInFootprint(pack, state, footprint, origin, maxY, placements) {
+        function tryPlacePackInFootprint(pack, state, footprint, origin, maxY, placements, reservedZones = []) {
             const product = pack.product;
             let { x, z, y, rowDepth, layerHeight, layerIndex } = state;
             const options = orientationOptions(product, footprint, layerIndex);
@@ -1330,6 +1365,23 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             }
 
             if (selected.w > footprint.w || selected.l > footprint.l || x + selected.w > footprint.w / 2 || z + selected.l > footprint.l / 2) {
+                return false;
+            }
+
+            const candidate = {
+                x: origin.x + x + selected.w / 2,
+                z: origin.z + z + selected.l / 2,
+                w: selected.w,
+                l: selected.l
+            };
+            const reservedOverlap = placementOverlapsReserved(candidate, reservedZones);
+            if (reservedOverlap) {
+                state.x = Math.max(x + selected.w, reservedOverlap.x2 - origin.x + 0.001);
+                state.z = z;
+                state.y = y;
+                state.rowDepth = rowDepth;
+                state.layerHeight = layerHeight;
+                state.layerIndex = layerIndex;
                 return false;
             }
 
@@ -1365,6 +1417,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
             const placements = [];
             const states = slots.map(() => createPlacementState(palletFootprint, baseHeight));
             const slotFractions = slots.map(() => 0);
+            const slotReservedZones = slots.map(() => []);
             let slotIndex = 0;
 
             for (const pack of packs) {
@@ -1376,7 +1429,13 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         slotIndex++;
                         continue;
                     }
-                    placed = tryPlacePackInFootprint(pack, states[slotIndex], palletFootprint, slots[slotIndex], maxY, placements);
+                    if (isStandProduct(pack.product)) {
+                        const before = placements.length;
+                        placeCenteredStandPacks([pack], palletFootprint, slots[slotIndex], baseHeight, maxY, placements, slotReservedZones[slotIndex]);
+                        placed = placements.length > before;
+                    } else {
+                        placed = tryPlacePackInFootprint(pack, states[slotIndex], palletFootprint, slots[slotIndex], maxY, placements, slotReservedZones[slotIndex]);
+                    }
                     if (placed) {
                         slotFractions[slotIndex] += slotFraction;
                     } else {
