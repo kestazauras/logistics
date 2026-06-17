@@ -432,14 +432,28 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 const stands = remainingItems.filter(item => item.priority === this.PRIORITY.STANDS);
                 remainingItems = remainingItems.filter(item => item.priority !== this.PRIORITY.STANDS);
 
-                stands.forEach((stand, index) => {
+                const standDims = stands.map(stand => {
                     const isMetalStand = stand.name.toUpperCase().includes("METAL STAND");
-                    const w = Math.min(isMetalStand ? Math.min(stand.w, stand.l) : stand.w, config.width);
-                    const l = Math.min(isMetalStand ? Math.max(stand.w, stand.l) : stand.l, config.length);
+                    return {
+                        stand,
+                        w: Math.min(isMetalStand ? Math.min(stand.w, stand.l) : stand.w, config.width),
+                        l: Math.min(isMetalStand ? Math.max(stand.w, stand.l) : stand.l, config.length)
+                    };
+                });
+                const fittingStandDims = [];
+                let fittingStandWidth = 0;
+                for (const standDim of standDims) {
+                    if (fittingStandWidth + standDim.w <= config.width + 0.001) {
+                        fittingStandDims.push(standDim);
+                        fittingStandWidth += standDim.w;
+                    }
+                }
+                let standCursorX = (config.width - fittingStandWidth) / 2;
+                fittingStandDims.forEach(({ stand, w, l }, index) => {
                     if (config.baseHeight + stand.h > config.maxY + 0.001) return;
                     const placed = {
                         ...stand,
-                        x: (config.width - w) / 2,
+                        x: standCursorX,
                         z: (config.length - l) / 2,
                         y: 0,
                         w,
@@ -448,6 +462,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         standReserved: true,
                         standIndex: index
                     };
+                    standCursorX += w;
                     packedItems.push(placed);
                     obstacles.push({ x: placed.x, z: placed.z, y: 0, w, l, h: Math.max(0, config.maxY - config.baseHeight) });
                 });
@@ -521,7 +536,7 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                     while (index < groupItems.length) {
                         const layerItems = groupItems.slice(index, index + rule.perLayer);
                         const layer = this.buildCenteredLayer(layerItems, rule, config.width, config.length, cursorY);
-                        if (!layer || layer.some(candidate => !this.isValidPlacement(candidate, config.width, config.length, config.maxY - config.baseHeight, packedItems, obstacles))) {
+                        if (!layer || layer.some(candidate => !this.isValidRuleLayerPlacement(candidate, rule, config.width, config.length, config.maxY - config.baseHeight, packedItems, obstacles))) {
                             remaining.push(...groupItems.slice(index));
                             break;
                         }
@@ -539,6 +554,8 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 if (s.startsWith("LP") && !s.startsWith("LPM") && !s.startsWith("LP.P") && !s.startsWith("LPB")) return "LINEO_PRO";
                 if (s.startsWith("LN")) return "LINEO";
                 if (s.startsWith("LPM") || s.startsWith("AE75") || s.includes("D75-C")) return `MOUL_AERO_${s}`;
+                if (item.priority === this.PRIORITY.DEMO_BOX) return `DEMO_${s || item.name}`;
+                if (item.priority === this.PRIORITY.SPARE_PARTS) return `SPARE_${s || item.name}`;
                 return "";
             }
 
@@ -546,10 +563,19 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                 if (key === "RN150_160") return { perLayer: 9, columns: 3, rows: 3, flatOnly: true };
                 if (key === "LINEO_PRO") {
                     const single = ["LP75.120.101", "LP90.120.101"].includes(item.sku);
-                    return { perLayer: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3), columns: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3), rows: 1, flatOnly: true };
+                    return { perLayer: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3), columns: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3), rows: 1, flatOnly: true, allowRuleStack: true };
                 }
-                if (key === "LINEO") return { perLayer: 8, columns: 4, rows: 2, flatOnly: true };
-                return { perLayer: Math.max(1, Math.min(8, Math.floor(110 / Math.max(1, Math.min(item.w, item.l))))), columns: 4, rows: 2, flatOnly: true };
+                if (key === "LINEO") return { perLayer: 8, columns: 4, rows: 2, flatOnly: true, allowRuleStack: true };
+                if (key.startsWith("DEMO_")) return this.aeroStyleRule(item, 8, true);
+                if (key.startsWith("SPARE_")) return this.aeroStyleRule(item, 24, true);
+                return this.aeroStyleRule(item, 8, true);
+            }
+
+            aeroStyleRule(item, maxPerLayer = 8, flatOnly = true) {
+                const shortest = Math.max(1, Math.min(item.w, item.l));
+                const columns = Math.max(1, Math.min(maxPerLayer, Math.floor(110 / shortest)));
+                const rows = Math.max(1, Math.ceil(Math.min(maxPerLayer, columns * 2) / columns));
+                return { perLayer: columns * rows, columns, rows, flatOnly, allowRuleStack: true };
             }
 
             buildCenteredLayer(items, rule, width, length, y) {
@@ -583,6 +609,22 @@ Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1
                         ruleLayer: true
                     };
                 });
+            }
+
+            isValidRuleLayerPlacement(candidate, rule, packWidth, packLength, packHeight, packedItems, obstacles) {
+                if (candidate.x < 0 || candidate.x + candidate.w > packWidth) return false;
+                if (candidate.z < 0 || candidate.z + candidate.l > packLength) return false;
+                if (candidate.y < 0 || candidate.y + candidate.h > packHeight) return false;
+                for (const item of packedItems) {
+                    if (this.intersects(candidate, item)) return false;
+                }
+                for (const obstacle of obstacles) {
+                    const xOverlap = Math.max(0, Math.min(candidate.x + candidate.w, obstacle.x + obstacle.w) - Math.max(candidate.x, obstacle.x));
+                    const zOverlap = Math.max(0, Math.min(candidate.z + candidate.l, obstacle.z + obstacle.l) - Math.max(candidate.z, obstacle.z));
+                    if (xOverlap > 0 && zOverlap > 0 && candidate.y + candidate.h > obstacle.y) return false;
+                }
+                if (!rule.allowRuleStack && candidate.y > 0 && this.getBottomSupportRatio(candidate, packedItems) < 0.5) return false;
+                return true;
             }
 
             bestLayerOrientation(item, rule, width, length) {
