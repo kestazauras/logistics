@@ -9,14 +9,6 @@ import {
   isLineo500Item,
   pickLineo500LayerPlan,
 } from "./lineo500-bricklaying";
-import {
-  buildLineoGridLayer,
-  lineoFamilyCellSize,
-  lineoPlanarOrientation,
-  maxLineoUnitsPerLayer,
-  pickLineoLayerGrid,
-} from "./lineo-grid";
-import { lineoSkuOrderedSubgroups } from "./lineo-sku-layers";
 import { assertNoPlacementOverlaps } from "./placement-validation";
 import type {
   CandidatePlacement,
@@ -33,9 +25,6 @@ import type {
   RulesContext,
   TransportContext,
 } from "../types";
-
-/** Layer-first horizontal packing for accessory families — never extreme-point towers. */
-const HORIZONTAL_LAYER_KEYS = new Set(["LINEO_PRO", "MOUL_AERO", "SPARE_PARTS"]);
 
 const DEFAULT_MAX_CAPACITIES: MaxCapacities = {
   RN100: { FIN: 168, "20HQ_FLOOR": 1764 },
@@ -236,7 +225,6 @@ export class ErgoventLogisticsOptimizer {
     let extremePoints = this.seedExtremePoints(packedItems, config.width, config.length, config.maxY - config.baseHeight);
     for (const item of remainingItems) {
       if (isLineo500Item(item)) continue;
-      if (this.usesRuleLayerFamily(item)) continue;
       let best: { score: number; candidate: CandidatePlacement; item: ExpandedItem } | null = null;
       const rotations =
         item.priority === this.PRIORITY.DEMO_BOX || item.priority === this.PRIORITY.STANDS
@@ -319,31 +307,41 @@ export class ErgoventLogisticsOptimizer {
     );
 
     for (const [key, groupItems] of sortedGroups) {
-      if (HORIZONTAL_LAYER_KEYS.has(key)) {
-        const packed = this.packHorizontalFamily(
-          key,
-          groupItems,
-          packedItems,
-          obstacles,
-          config,
-          cursorY,
-          packHeight,
-        );
-        cursorY = packed.cursorY;
-        remaining.push(...packed.remaining);
-        continue;
-      }
-
-      const rule = this.layerRuleForKey(key, groupItems[0], config.width, config.length);
+      const rule = this.layerRuleForKey(key, groupItems[0]);
       let index = 0;
       while (index < groupItems.length) {
         const left = groupItems.length - index;
-        const take = left >= rule.perLayer ? rule.perLayer : left;
-        const layerItems = groupItems.slice(index, index + take);
+        if (left >= rule.perLayer) {
+          const layerItems = groupItems.slice(index, index + rule.perLayer);
+          const layer = this.buildCenteredLayer(layerItems, rule, config.width, config.length, cursorY);
+          if (
+            !layer ||
+            layer.some((candidate) =>
+              !this.isValidRuleLayerPlacement(
+                candidate,
+                rule,
+                config.width,
+                config.length,
+                packHeight,
+                packedItems,
+                obstacles,
+              ),
+            )
+          ) {
+            remaining.push(...groupItems.slice(index));
+            break;
+          }
+          packedItems.push(...layer);
+          cursorY += Math.max(...layer.map((item) => item.h));
+          index += layerItems.length;
+          continue;
+        }
+
+        // Partial remainder: one horizontal layer on top (centered grid), never a vertical tower.
+        const layerItems = groupItems.slice(index);
         const layer = this.buildCenteredLayer(layerItems, rule, config.width, config.length, cursorY);
         if (
           !layer ||
-          layer.length !== layerItems.length ||
           layer.some((candidate) =>
             !this.isValidRuleLayerPlacement(
               candidate,
@@ -367,141 +365,6 @@ export class ErgoventLogisticsOptimizer {
     return { remaining };
   }
 
-  /** Full layers first by SKU, then one combined horizontal partial layer on top. */
-  packHorizontalFamily(
-    key: string,
-    groupItems: ExpandedItem[],
-    packedItems: PlacedItem[],
-    obstacles: Obstacle[],
-    config: PalletizedConfig,
-    cursorY: number,
-    packHeight: number,
-  ): { remaining: ExpandedItem[]; cursorY: number } {
-    const remaining: ExpandedItem[] = [];
-    const subgroups = lineoSkuOrderedSubgroups(groupItems, config.width, config.length);
-    const fullChunks: ExpandedItem[][] = [];
-    const partialRemainders: ExpandedItem[] = [];
-    const stackRule: LayerRule = {
-      perLayer: 1,
-      columns: 1,
-      rows: 1,
-      flatOnly: true,
-      allowRuleStack: true,
-    };
-
-    for (const subgroup of subgroups) {
-      const rule = this.layerRuleForKey(key, subgroup[0], config.width, config.length);
-      let index = 0;
-      while (index + rule.perLayer <= subgroup.length) {
-        fullChunks.push(subgroup.slice(index, index + rule.perLayer));
-        index += rule.perLayer;
-      }
-      partialRemainders.push(...subgroup.slice(index));
-    }
-
-    for (const chunk of fullChunks) {
-      const rule = this.layerRuleForKey(key, chunk[0], config.width, config.length);
-      const layer = this.buildCenteredLayer(chunk, rule, config.width, config.length, cursorY);
-      if (
-        !layer ||
-        layer.length !== chunk.length ||
-        layer.some((candidate) =>
-          !this.isValidRuleLayerPlacement(
-            candidate,
-            rule,
-            config.width,
-            config.length,
-            packHeight,
-            packedItems,
-            obstacles,
-          ),
-        )
-      ) {
-        remaining.push(...chunk, ...partialRemainders);
-        return { remaining, cursorY };
-      }
-      packedItems.push(...layer);
-      cursorY += Math.max(...layer.map((item) => item.h));
-    }
-
-    if (partialRemainders.length) {
-      const { cellW, cellL } = lineoFamilyCellSize(partialRemainders);
-      const gridLayer = buildLineoGridLayer(
-        partialRemainders,
-        cursorY,
-        config.width,
-        config.length,
-        0,
-        false,
-        partialRemainders.length,
-        packedItems,
-        cellW,
-        cellL,
-      );
-      const gridOk =
-        gridLayer?.length === partialRemainders.length &&
-        !gridLayer.some((candidate) =>
-          !this.isValidRuleLayerPlacement(
-            candidate,
-            stackRule,
-            config.width,
-            config.length,
-            packHeight,
-            packedItems,
-            obstacles,
-          ),
-        );
-      if (gridOk) {
-        packedItems.push(...gridLayer!);
-        cursorY += Math.max(...gridLayer!.map((item) => item.h));
-      } else {
-        for (const subgroup of subgroups) {
-          const rule = this.layerRuleForKey(key, subgroup[0], config.width, config.length);
-          let index = 0;
-          while (index + rule.perLayer <= subgroup.length) index += rule.perLayer;
-          const partial = subgroup.slice(index);
-          if (!partial.length) continue;
-          const partialRule = {
-            ...rule,
-            perLayer: partial.length,
-            columns: Math.min(rule.columns, partial.length),
-            rows: Math.ceil(partial.length / Math.min(rule.columns, partial.length)),
-          };
-          const layer = this.buildCenteredLayer(partial, partialRule, config.width, config.length, cursorY);
-          if (
-            !layer ||
-            layer.length !== partial.length ||
-            layer.some((candidate) =>
-              !this.isValidRuleLayerPlacement(
-                candidate,
-                stackRule,
-                config.width,
-                config.length,
-                packHeight,
-                packedItems,
-                obstacles,
-              ),
-            )
-          ) {
-            remaining.push(...partial);
-            continue;
-          }
-          packedItems.push(...layer);
-          cursorY += Math.max(...layer.map((item) => item.h));
-        }
-      }
-    }
-
-    return { remaining, cursorY };
-  }
-
-  usesRuleLayerFamily(item: ExpandedItem): boolean {
-    if (item.priority === this.PRIORITY.DEMO_BOX) return false;
-    if (item.priority === this.PRIORITY.RONDO_KV100_125) return false;
-    const key = this.layerRuleKey(item);
-    return HORIZONTAL_LAYER_KEYS.has(key);
-  }
-
   layerRuleKey(item: ExpandedItem): string {
     const s = item.sku;
     if (["RN150", "RN160"].includes(s)) return "RN150_160";
@@ -512,26 +375,20 @@ export class ErgoventLogisticsOptimizer {
       if (item.name.includes("LINEO-500")) return "LINEO_500";
       return "LINEO";
     }
-    if (s.startsWith("LPM") || s.startsWith("AE75") || s.includes("D75-C")) return "MOUL_AERO";
+    if (s.startsWith("LPM") || s.startsWith("AE75") || s.includes("D75-C")) return `MOUL_AERO_${s || item.name}`;
     if (item.priority === this.PRIORITY.DEMO_BOX) return `DEMO_${s || item.name}`;
-    if (item.priority === this.PRIORITY.SPARE_PARTS) return "SPARE_PARTS";
+    if (item.priority === this.PRIORITY.SPARE_PARTS) return `SPARE_${s || item.name}`;
     return "";
   }
 
-  layerRuleForKey(key: string, item: ExpandedItem, packWidth: number, packLength: number): LayerRule {
+  layerRuleForKey(key: string, item: ExpandedItem): LayerRule {
     if (key === "RN150_160") return { perLayer: 9, columns: 3, rows: 3, flatOnly: true };
     if (key === "LINEO_PRO") {
       const single = ["LP75.120.101", "LP90.120.101"].includes(item.sku);
-      const catalogUnits = single ? 6 : Math.max(3, item.product.layerUnitsFin || 3);
-      const oriented = lineoPlanarOrientation(item.w, item.l, item.h, 0, false);
-      const fitUnits = maxLineoUnitsPerLayer(catalogUnits, oriented.w, oriented.l, packWidth, packLength);
-      const grid =
-        pickLineoLayerGrid(Math.max(1, fitUnits), oriented.w, oriented.l, packWidth, packLength) ??
-        pickLineoLayerGrid(1, oriented.w, oriented.l, packWidth, packLength) ?? { cols: 1, rows: 1 };
       return {
-        perLayer: Math.max(1, fitUnits),
-        columns: grid.cols,
-        rows: grid.rows,
+        perLayer: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3),
+        columns: single ? 6 : Math.max(3, item.product.layerUnitsFin || 3),
+        rows: 1,
         flatOnly: true,
         allowRuleStack: true,
       };
@@ -549,35 +406,14 @@ export class ErgoventLogisticsOptimizer {
       }
     }
     if (key === "LINEO") return { perLayer: 8, columns: 4, rows: 2, flatOnly: true, allowRuleStack: true };
-    if (key.startsWith("DEMO_")) return this.aeroStyleRule(item, 8, true, packWidth, packLength);
-    if (key === "MOUL_AERO") return this.aeroStyleRule(item, 8, true, packWidth, packLength);
-    if (key === "SPARE_PARTS") return this.aeroStyleRule(item, 24, true, packWidth, packLength);
-    return this.aeroStyleRule(item, 8, true, packWidth, packLength);
+    if (key.startsWith("DEMO_")) return this.aeroStyleRule(item, 8, true);
+    return this.aeroStyleRule(item, 8, true);
   }
 
-  aeroStyleRule(
-    item: ExpandedItem,
-    maxPerLayer = 8,
-    flatOnly = true,
-    packWidth = 110,
-    packLength = 130,
-  ): LayerRule {
-    const oriented = lineoPlanarOrientation(item.w, item.l, item.h, 0, false);
-    const shortest = Math.max(1, Math.min(oriented.w, oriented.l));
-    const columns = Math.max(1, Math.min(maxPerLayer, Math.floor(packWidth / shortest)));
+  aeroStyleRule(item: ExpandedItem, maxPerLayer = 8, flatOnly = true): LayerRule {
+    const shortest = Math.max(1, Math.min(item.w, item.l));
+    const columns = Math.max(1, Math.min(maxPerLayer, Math.floor(110 / shortest)));
     const rows = Math.max(1, Math.ceil(Math.min(maxPerLayer, columns * 2) / columns));
-    const grid =
-      pickLineoLayerGrid(columns * rows, oriented.w, oriented.l, packWidth, packLength) ??
-      pickLineoLayerGrid(1, oriented.w, oriented.l, packWidth, packLength);
-    if (grid) {
-      return {
-        perLayer: grid.cols * grid.rows,
-        columns: grid.cols,
-        rows: grid.rows,
-        flatOnly,
-        allowRuleStack: true,
-      };
-    }
     return { perLayer: columns * rows, columns, rows, flatOnly, allowRuleStack: true };
   }
 

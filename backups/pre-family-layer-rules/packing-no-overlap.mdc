@@ -15,9 +15,8 @@ Overlapping boxes in `Scene3D` are almost always a **packing engine bug**, not a
 3. **Never place two product groups at y=0** unless they are the same coordinated layer builder (e.g. one rule-layer call). Bricklaying paths (RONDO, LINEO-500) must not share the same base Y when both are present.
 4. **`centerLayers`** may shift X/Z only when the shift does not create 3D intersection with items outside the layer group (existing unsafe rollback must stay).
 5. End of `packPalletized` / `packFloorLoaded` must call `assertNoPlacementOverlaps` before returning.
-6. **Partial SKU remainders** (`count < perLayer`): place as **one horizontal layer** on top of the current stack via `buildCenteredLayer` at `cursorY` (centered grid). Never stack a vertical tower/column.
-7. **Layer-first families** (LINEO, LINEO PRO, LINEO PRO CONDI, Moulages, AERO PRO, spare parts): full horizontal layers before partial remainders; SKU sub-batches sorted by layer count via `lineoSkuOrderedSubgroups`. These families must **not** fall through to extreme-point stacking. Unchanged: RONDO/KVADRO/COANDA brick paths, RN150/160 rule layers, Marketing (Demo Box).
-8. **LINEO-500 bricklaying** runs before `packRuleBasedLayers` so full LN500 layers sit below other LINEO SKUs.
+6. **Partial SKU remainders** (`count < perLayer`): place as **one horizontal layer** on top of the current stack via `buildCenteredLayer` at `cursorY` (centered grid). Never stack a vertical tower/column. Applies to all families except RONDO/KVADRO/COANDA brick paths.
+7. **Layer-first priority**: complete full layers before starting the next (partial) layer; LINEO-500 bricklaying runs before other LINEO SKUs so full LN500 layers sit below.
 
 ## When adding a new packing path
 
