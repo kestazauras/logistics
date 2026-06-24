@@ -31,6 +31,9 @@ import type {
   TransportContext,
 } from "../types";
 
+/** @deprecated kept for rule doc references */
+const HORIZONTAL_LAYER_KEYS = LAYER_FIRST_KEYS;
+
 const DEFAULT_MAX_CAPACITIES: MaxCapacities = {
   RN100: { FIN: 168, "20HQ_FLOOR": 1764 },
   RN125: { FIN: 168, "20HQ_FLOOR": 1764 },
