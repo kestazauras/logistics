@@ -35,6 +35,17 @@ function stepValue(current: number, delta: number, min: number, max: number): nu
   return Math.min(max, Math.max(min, current + delta));
 }
 
+function formatNumericInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits === "") return "";
+  return digits.replace(/^0+(?=\d)/, "");
+}
+
+function parseNumericInput(raw: string): number {
+  if (raw === "") return 0;
+  return Math.max(0, parseInteger(raw, 0));
+}
+
 function formatDim(value: number | undefined): string {
   return Number.isFinite(value) ? value!.toFixed(1) : "-";
 }
@@ -90,6 +101,9 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
   const [sceneBaseHeight, setSceneBaseHeight] = useState(0);
   const [partitionedUnits, setPartitionedUnits] = useState<EngineState["partitionedUnits"]>([]);
   const [activeViewIndex, setActiveViewIndex] = useState(0);
+  const [qtyEdit, setQtyEdit] = useState<{ productId: string; text: string } | null>(null);
+  const [shippingEdit, setShippingEdit] = useState<string | null>(null);
+  const [overhangEdit, setOverhangEdit] = useState<string | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const productListRef = useRef<HTMLDivElement>(null);
 
@@ -221,7 +235,7 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
   };
 
   const handleQtyInput = (product: Product, rawValue: string) => {
-    updateQuantity(product.id, Math.max(0, parseInteger(rawValue, 0)));
+    updateQuantity(product.id, parseNumericInput(rawValue));
   };
 
   const commitQtyInput = (product: Product, rawValue: string) => {
@@ -239,10 +253,13 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
   const resetQuantities = () => {
     setQuantities(Object.fromEntries(products.map((product) => [product.id, { pcs: 0, packs: 0 }])));
     setShippingPrice(0);
+    setQtyEdit(null);
   };
 
-  const resetOverhang = () =>
+  const resetOverhang = () => {
+    setOverhangEdit(null);
     setOverhang(computeDefaultPalletOverhang(products, currentTransport));
+  };
 
   const handleSwitchActiveView = (index: number) => {
     const state = engineStateRef.current;
@@ -389,23 +406,29 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
               <button
                 type="button"
                 className="stepper-btn !w-6 !h-6 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-300"
-                onClick={() => handleQtyChange(product, String(qtyValue - product.packQty))}
+                onClick={() => {
+                  setQtyEdit(null);
+                  handleQtyChange(product, String(qtyValue - product.packQty));
+                }}
               >
                 -
               </button>
               <input
                 id={`qty-${product.id}`}
-                type="number"
-                min={0}
-                step={1}
-                value={qtyValue}
+                type="text"
+                inputMode="numeric"
+                value={qtyEdit?.productId === product.id ? qtyEdit.text : String(qtyValue)}
                 data-id={product.id}
                 className="qty-input w-14 bg-transparent px-1 py-1 text-center font-mono font-bold text-brand-slate dark:text-white outline-none"
-                onFocus={(e) => {
-                  if (e.target.value === "0") e.target.value = "";
+                onFocus={() => {
+                  setQtyEdit({
+                    productId: product.id,
+                    text: qtyValue === 0 ? "" : String(qtyValue),
+                  });
                 }}
                 onBlur={(e) => {
                   commitQtyInput(product, e.target.value === "" ? "0" : e.target.value);
+                  setQtyEdit(null);
                 }}
                 onKeyDown={(e) => {
                   if (e.key !== "Enter") return;
@@ -413,12 +436,19 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
                   commitQtyInput(product, e.currentTarget.value === "" ? "0" : e.currentTarget.value);
                   e.currentTarget.blur();
                 }}
-                onInput={(e) => handleQtyInput(product, e.currentTarget.value)}
+                onChange={(e) => {
+                  const text = formatNumericInput(e.target.value);
+                  setQtyEdit({ productId: product.id, text });
+                  handleQtyInput(product, text);
+                }}
               />
               <button
                 type="button"
                 className="stepper-btn !w-6 !h-6 bg-gray-50 dark:bg-gray-800 text-brand-orange"
-                onClick={() => handleQtyChange(product, String(qtyValue + product.packQty))}
+                onClick={() => {
+                  setQtyEdit(null);
+                  handleQtyChange(product, String(qtyValue + product.packQty));
+                }}
               >
                 +
               </button>
@@ -486,29 +516,37 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
             <button
               type="button"
               className="stepper-btn bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
-              onClick={() => setShippingPrice((v) => stepValue(v, -1, 0, Infinity))}
+              onClick={() => {
+                setShippingEdit(null);
+                setShippingPrice((v) => stepValue(v, -1, 0, Infinity));
+              }}
             >
               -
             </button>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               id="shipping-price"
-              value={shippingPrice}
-              min={0}
-              step={1}
+              value={shippingEdit ?? String(shippingPrice)}
               className="w-16 bg-transparent text-center outline-none text-base font-bold text-brand-slate dark:text-white"
-              onFocus={(e) => {
-                if (e.target.value === "0") e.target.value = "";
-              }}
+              onFocus={() => setShippingEdit(shippingPrice === 0 ? "" : String(shippingPrice))}
               onBlur={(e) => {
-                if (e.target.value === "") setShippingPrice(0);
+                setShippingPrice(parseNumericInput(e.target.value));
+                setShippingEdit(null);
               }}
-              onChange={(e) => setShippingPrice(Math.max(0, parseInteger(e.target.value, 0)))}
+              onChange={(e) => {
+                const text = formatNumericInput(e.target.value);
+                setShippingEdit(text);
+                setShippingPrice(parseNumericInput(text));
+              }}
             />
             <button
               type="button"
               className="stepper-btn bg-white dark:bg-gray-800 text-brand-orange border border-gray-200 dark:border-gray-600"
-              onClick={() => setShippingPrice((v) => stepValue(v, 1, 0, Infinity))}
+              onClick={() => {
+                setShippingEdit(null);
+                setShippingPrice((v) => stepValue(v, 1, 0, Infinity));
+              }}
             >
               +
             </button>
@@ -544,25 +582,38 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
                 <button
                   type="button"
                   className="stepper-btn !w-5 !h-5 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
-                  onClick={() => setOverhang((v) => stepValue(v, -1, 0, 50))}
+                  onClick={() => {
+                    setOverhangEdit(null);
+                    setOverhang((v) => stepValue(v, -1, 0, 50));
+                  }}
                 >
                   -
                 </button>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   id="overhang-input"
-                  value={overhang}
-                  min={0}
-                  max={50}
-                  step={1}
+                  value={overhangEdit ?? String(overhang)}
                   className="w-8 bg-transparent text-center outline-none text-brand-orange border-b border-brand-orange font-bold"
-                  onChange={(e) => setOverhang(Math.max(0, Math.min(50, parseInteger(e.target.value, 0))))}
+                  onFocus={() => setOverhangEdit(overhang === 0 ? "" : String(overhang))}
+                  onBlur={(e) => {
+                    setOverhang(Math.min(50, parseNumericInput(e.target.value)));
+                    setOverhangEdit(null);
+                  }}
+                  onChange={(e) => {
+                    const text = formatNumericInput(e.target.value);
+                    setOverhangEdit(text);
+                    setOverhang(Math.min(50, parseNumericInput(text)));
+                  }}
                 />
                 cm
                 <button
                   type="button"
                   className="stepper-btn !w-5 !h-5 bg-white dark:bg-gray-800 text-brand-orange border border-gray-200 dark:border-gray-600"
-                  onClick={() => setOverhang((v) => stepValue(v, 1, 0, 50))}
+                  onClick={() => {
+                    setOverhangEdit(null);
+                    setOverhang((v) => stepValue(v, 1, 0, 50));
+                  }}
                 >
                   +
                 </button>
