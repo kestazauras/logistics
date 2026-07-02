@@ -13,22 +13,13 @@ import {
   type EngineState,
 } from "@/lib/calculations";
 import type { AppData } from "@/lib/load-app-data";
-import { parseInteger } from "@/lib/parsers";
+import { parseInteger, escapeHtml } from "@/lib/parsers";
 import { computeDefaultPalletOverhang } from "@/lib/overhang";
 import { ErgoventLogisticsOptimizer } from "@/lib/packing/ergovent-engine";
 import type { Footprint, Placement, Product, QuantityEntry } from "@/lib/types";
 
 interface OptimizerAppProps {
   initialData: AppData;
-}
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function stepValue(current: number, delta: number, min: number, max: number): number {
@@ -288,11 +279,9 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
       { packagingRules },
       () => overhang,
     );
-    const xlsx = await import("xlsx");
     generateOrder({
       state: engineStateRef.current,
       helpers,
-      xlsx,
     });
   };
 

@@ -1,3 +1,12 @@
+export function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 export function parseNumber(value: unknown, fallback = 0): number {
   if (value === undefined || value === null || value === "") return fallback;
   const parsed = parseFloat(String(value).replace(",", "."));
@@ -75,13 +84,4 @@ export function productSubGroup(rawCategory: string | undefined | null): string 
   if (raw.includes("Moulages 1 slot")) return "1 slot";
   if (raw.includes("Moulages 2 slot")) return "2 slots";
   return "";
-}
-
-export function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }

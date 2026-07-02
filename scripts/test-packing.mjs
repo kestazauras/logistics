@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 import { parseProductRow, parseLogisticsRow } from "../lib/data.ts";
 import { PACKAGING_RULES } from "../lib/constants.ts";
 import { ErgoventLogisticsOptimizer } from "../lib/packing/ergovent-engine.ts";
-import { canPlaceAllPacks, computePlacements, createTransportContext } from "../lib/calculations.ts";
+import { computePlacements, createTransportContext, partitionActivePacks } from "../lib/calculations.ts";
 import { computeDefaultPalletOverhang } from "../lib/overhang.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -109,21 +109,10 @@ function layerCountFromPlacements(placements, baseHeight) {
 
 function partitionPacks(packs, state, rulesCtx, engine) {
   const baseHeight = state.currentTransport.palletHeight || 15;
-  const units = [];
-  let unit = { packs: [] };
-  for (const pack of packs) {
-    const wouldOverflow = unit.packs.length > 0 && !canPlaceAllPacks([...unit.packs, pack], engine);
-    if (wouldOverflow) {
-      units.push(unit);
-      unit = { packs: [] };
-    }
-    unit.packs.push(pack);
-  }
-  if (unit.packs.length) units.push(unit);
-  return units.map((u) => {
-    const layout = computePlacements(u.packs, engine);
+  return partitionActivePacks(packs, engine).map((group) => {
+    const layout = computePlacements(group, engine);
     return {
-      packCount: u.packs.length,
+      packCount: group.length,
       layout,
       layerCount: layerCountFromPlacements(layout.placements, baseHeight),
     };

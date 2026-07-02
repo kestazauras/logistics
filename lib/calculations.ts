@@ -1,4 +1,5 @@
 import { GROUP_ORDER, ORDER_EXPORT_COLUMNS, PACKAGING_RULES } from "./constants";
+import { escapeHtml } from "./parsers";
 import { ErgoventLogisticsOptimizer } from "./packing/ergovent-engine";
 import type {
   Footprint,
@@ -289,6 +290,39 @@ export function canPlaceAllPacks(
   return layout.unpacked.length === 0;
 }
 
+/** Partition packs into transport units using max-fit batches (not greedy per-pack). */
+export function partitionActivePacks(
+  packs: Pack[],
+  packingEngine: ErgoventLogisticsOptimizer,
+): Pack[][] {
+  const units: Pack[][] = [];
+  let start = 0;
+  while (start < packs.length) {
+    const remaining = packs.slice(start);
+    if (canPlaceAllPacks(remaining, packingEngine)) {
+      units.push(remaining);
+      break;
+    }
+
+    let lo = 1;
+    let hi = remaining.length - 1;
+    let best = 0;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (canPlaceAllPacks(remaining.slice(0, mid), packingEngine)) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (best === 0) best = 1;
+    units.push(remaining.slice(0, best));
+    start += best;
+  }
+  return units;
+}
+
 export function finalizeUnit(
   unit: PartitionedUnit,
   state: Pick<EngineState, "currentTransport">,
@@ -379,7 +413,7 @@ export function updateGroupTotals(
     dom.setGroupTotalBadge(index, `${total} pcs`);
     if (total > 0) {
       counterItems.push(
-        `<span class="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded truncate max-w-[160px] border border-gray-200 dark:border-gray-600 font-mono">${group.slice(0, 12)}: ${total}</span>`,
+        `<span class="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded truncate max-w-[160px] border border-gray-200 dark:border-gray-600 font-mono">${escapeHtml(group.slice(0, 12))}: ${total}</span>`,
       );
     }
   });
@@ -464,22 +498,17 @@ export function calculateROI(hooks: CalculateROIHooks): void {
 
   state.partitionedUnits = [];
   if (activePacks.length) {
-    let unit = createUnit(state.currentTransport);
-    state.partitionedUnits.push(unit);
-
-    activePacks.forEach((pack) => {
-      const wouldOverflow = unit.packs.length > 0 && !canPlaceAllPacks([...unit.packs, pack], packingEngine);
-      if (wouldOverflow) {
-        finalizeUnit(unit, state, helpers, packingEngine);
-        unit = createUnit(state.currentTransport);
-        state.partitionedUnits.push(unit);
+    for (const group of partitionActivePacks(activePacks, packingEngine)) {
+      const unit = createUnit(state.currentTransport);
+      for (const pack of group) {
+        unit.packs.push(pack);
+        unit.gross += pack.gross;
+        unit.net += pack.net;
+        unit.volume += pack.volume;
+        unit.fraction += pack.pcs / productCapacityUnits(pack.product, state, helpers, packingEngine);
       }
-      unit.packs.push(pack);
-      unit.gross += pack.gross;
-      unit.net += pack.net;
-      unit.volume += pack.volume;
-      unit.fraction += pack.pcs / productCapacityUnits(pack.product, state, helpers, packingEngine);
-    });
+      state.partitionedUnits.push(unit);
+    }
     state.partitionedUnits.forEach((u) => finalizeUnit(u, state, helpers, packingEngine));
   }
 
@@ -516,19 +545,11 @@ export function calculateROI(hooks: CalculateROIHooks): void {
 export interface GenerateOrderOptions {
   state: EngineState;
   helpers: ReturnType<typeof createTransportHelpers>;
-  xlsx?: {
-    utils: {
-      book_new(): unknown;
-      json_to_sheet<T>(data: T[], opts?: { header?: readonly string[] }): unknown;
-      book_append_sheet(workbook: unknown, sheet: unknown, name: string): void;
-    };
-    writeFile(workbook: unknown, filename: string): void;
-  };
 }
 
 /** Mirrors index.html generateOrder(). */
 export function generateOrder(options: GenerateOrderOptions): void {
-  const { state, helpers, xlsx } = options;
+  const { state, helpers } = options;
   const selectedRows = state.productData
     .filter((product) => (state.quantities[product.id]?.pcs || 0) > 0)
     .map((product) => {
@@ -567,28 +588,24 @@ export function generateOrder(options: GenerateOrderOptions): void {
     "Efficiency %": Number(unit.efficiency.toFixed(1)),
   }));
 
-  if (xlsx) {
-    const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(
-      workbook,
-      xlsx.utils.json_to_sheet([...selectedRows, totalRow], { header: ORDER_EXPORT_COLUMNS }),
-      "Order",
-    );
-    xlsx.utils.book_append_sheet(workbook, xlsx.utils.json_to_sheet(unitRows), "Transport units");
-    xlsx.writeFile(workbook, `ERGOVENT_Order_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  } else {
-    const lines = [ORDER_EXPORT_COLUMNS.join(",")].concat(
-      [...selectedRows, totalRow].map((row) =>
-        ORDER_EXPORT_COLUMNS.map((column) => `"${String(row[column as keyof typeof row] ?? "").replaceAll('"', '""')}"`).join(","),
-      ),
-    );
-    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `ERGOVENT_Order_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
+  const lines = [ORDER_EXPORT_COLUMNS.join(",")].concat(
+    [...selectedRows, totalRow].map((row) =>
+      ORDER_EXPORT_COLUMNS.map((column) => `"${String(row[column as keyof typeof row] ?? "").replaceAll('"', '""')}"`).join(","),
+    ),
+    ["", "Transport units"],
+    ["Unit", "Transport model", "Footprint cm", "Load height cm", "Gross kg", "Net kg", "Efficiency %"].join(","),
+    ...unitRows.map((row) =>
+      ["Unit", "Transport model", "Footprint cm", "Load height cm", "Gross kg", "Net kg", "Efficiency %"]
+        .map((column) => `"${String(row[column as keyof typeof row] ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    ),
+  );
+  const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `ERGOVENT_Order_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 export type TransportHelperBundle = ReturnType<typeof createTransportHelpers>;

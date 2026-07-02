@@ -41,12 +41,8 @@ next-env.d.ts
 
 /scripts/seed-generated.sql
 
-# local script artifacts
-/scripts/exec-chunk-*.txt
-/scripts/mcp-*.json
-/scripts/chunks-for-mcp.json
-/scripts/q*.json
-/scripts/rest-*.txt
-/scripts/seed-*-out.txt
-/scripts/seed-*-raw.txt
-/scripts/seed-combined.json
+# one-off seed / MCP artifacts (regenerate via npm run seed:sql)
+/scripts/chunk*.sql
+/scripts/_seed*.sql
+/scripts/seed-a.sql
+/scripts/seed-b.sql

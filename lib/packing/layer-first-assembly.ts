@@ -8,6 +8,7 @@ import {
   lineoFamilyCellSize,
 } from "./lineo-grid";
 import { buildLineoSkuBatches, type LineoSkuBatch } from "./lineo-sku-layers";
+import { layerWithinColumnStackLimit } from "./placement-validation";
 import type { ExpandedItem, LayerRule, Obstacle, PalletizedConfig, PlacedItem } from "../types";
 
 export const LAYER_FIRST_KEYS = new Set(["LINEO", "LINEO_500", "LINEO_PRO", "MOUL_AERO", "SPARE_PARTS"]);
@@ -211,7 +212,8 @@ export function packLayerFirstAssembly(
           packedItems,
           obstacles,
         ) &&
-        layerHasSupport(gridLayer, packedItems, ctx)
+        layerHasSupport(gridLayer, packedItems, ctx) &&
+        layerWithinColumnStackLimit(gridLayer, packedItems, 2)
       ) {
         packedItems.push(...gridLayer);
         cursorY += Math.max(...gridLayer.map((item) => item.h));
@@ -230,7 +232,8 @@ export function packLayerFirstAssembly(
       const layer = ctx.buildCenteredLayer([sample], rule, config.width, config.length, cursorY);
       if (
         !validateLayer(layer, 1, stackRule, ctx, config.width, config.length, packHeight, packedItems, obstacles) ||
-        !layerHasSupport(layer!, packedItems, ctx)
+        !layerHasSupport(layer!, packedItems, ctx) ||
+        !layerWithinColumnStackLimit(layer!, packedItems, 2)
       ) {
         remaining.push(...pool);
         break;

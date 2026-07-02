@@ -21,6 +21,40 @@ export function boxesOverlap(
   );
 }
 
+export function xzFootprintOverlap(
+  a: Pick<PlacedItem, "x" | "z" | "w" | "l">,
+  b: Pick<PlacedItem, "x" | "z" | "w" | "l">,
+): boolean {
+  return (
+    a.x < b.x + b.w - 0.001 &&
+    b.x < a.x + a.w - 0.001 &&
+    a.z < b.z + b.l - 0.001 &&
+    b.z < a.z + a.l - 0.001
+  );
+}
+
+/** Count existing boxes whose X/Z footprint overlaps a candidate footprint. */
+export function columnStackDepth(
+  x: number,
+  z: number,
+  w: number,
+  l: number,
+  packed: PlacedItem[],
+): number {
+  const probe = { x, z, w, l };
+  return packed.filter((item) => xzFootprintOverlap(item, probe)).length;
+}
+
+export function layerWithinColumnStackLimit(
+  layer: PlacedItem[],
+  packed: PlacedItem[],
+  maxDepth: number,
+): boolean {
+  return layer.every(
+    (item) => columnStackDepth(item.x, item.z, item.w, item.l, packed) < maxDepth,
+  );
+}
+
 export function findPlacementOverlaps(items: PlacedItem[]): PlacementOverlap[] {
   const overlaps: PlacementOverlap[] = [];
   for (let i = 0; i < items.length; i++) {
