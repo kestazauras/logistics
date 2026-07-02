@@ -18,42 +18,6 @@ export function parseInteger(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export function parseDelimited(text: string): string[][] {
-  const delimiter = text.split(/\r?\n/, 1)[0].includes("\t") ? "\t" : ",";
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let value = "";
-  let quoted = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const next = text[i + 1];
-    if (char === '"') {
-      if (quoted && next === '"') {
-        value += '"';
-        i++;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (char === delimiter && !quoted) {
-      row.push(value);
-      value = "";
-    } else if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && next === "\n") i++;
-      row.push(value);
-      if (row.some((cell) => cell !== "")) rows.push(row);
-      row = [];
-      value = "";
-    } else {
-      value += char;
-    }
-  }
-
-  row.push(value);
-  if (row.some((cell) => cell !== "")) rows.push(row);
-  return rows;
-}
-
 export function normalizeDimensions(h: unknown, w: unknown, l: unknown): { h: number; w: number; l: number } {
   let dims = [parseNumber(h, 0), parseNumber(w, 0), parseNumber(l, 0)];
   if (Math.max(...dims) > 300) dims = dims.map((value) => value / 10);

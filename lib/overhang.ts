@@ -87,7 +87,3 @@ export function computeDefaultPalletOverhang(
   }
   return Math.min(maxCm, Math.ceil(required));
 }
-
-export function findFinPalletHighTransport(transports: TransportRecord[]): TransportRecord | undefined {
-  return transports.find((transport) => transport.name.toLowerCase().includes("fin pallet high"));
-}

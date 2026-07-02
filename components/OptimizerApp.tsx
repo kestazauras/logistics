@@ -1,8 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import EfficiencyChart from "@/components/EfficiencyChart";
-import Scene3D from "@/components/Scene3D";
+
+const EfficiencyChart = dynamic(() => import("@/components/EfficiencyChart"), { ssr: false });
+const Scene3D = dynamic(() => import("@/components/Scene3D"), {
+  ssr: false,
+  loading: () => (
+    <div className="absolute inset-0 flex items-center justify-center text-xs font-bold uppercase tracking-wider text-gray-400">
+      Loading 3D view…
+    </div>
+  ),
+});
 import {
   calculateROI,
   createTransportContext,

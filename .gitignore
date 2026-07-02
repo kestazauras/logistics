@@ -46,3 +46,20 @@ next-env.d.ts
 /scripts/_seed*.sql
 /scripts/seed-a.sql
 /scripts/seed-b.sql
+/scripts/diag-*.mjs
+/scripts/debug-*.mjs
+/scripts/calc-overhang.mjs
+/scripts/prepare-exec-chunks.mjs
+/scripts/run-seed-chunks.mjs
+/scripts/mcp-*.json
+/scripts/mcp-*.txt
+/scripts/exec-chunk*.txt
+/scripts/q*.json
+/scripts/rest-*.txt
+/scripts/seed-*-out.txt
+/scripts/seed-*-raw.txt
+/scripts/seed-combined.json
+/scripts/chunks-for-mcp.json
+
+# local code snapshots (not part of the app)
+/backups/
