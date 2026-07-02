@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERGOVENT Load Optimizer</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            orange: "#FF671F",
+                            slate: "#425563",
+                            black: "#000000",
+                            white: "#FFFFFF",
+                            light: "#F5F5F5"
+                        }
+                    }
+                }
+            }
+        };
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle("dark");
+            if (typeof update3DBackground === "function") update3DBackground();
+        }
+    </script>
+
+    <style>
+        @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap");
+        body { font-family: "Inter", sans-serif; overflow: hidden; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 6px; }
+        .dark ::-webkit-scrollbar-thumb { background-color: #4b5563; }
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+        .unit-badge { transition: all 0.2s ease; }
+        .unit-badge:hover { transform: translateY(-2px); }
+        .dim-line { border-top: 1px solid rgba(255, 103, 31, 0.6); }
+    </style>
+</head>
+<body class="h-screen flex flex-col bg-brand-light dark:bg-gray-900 text-brand-slate dark:text-gray-200 transition-colors">
+    <div id="global-tooltip" class="fixed hidden z-[100] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-2xl p-3 rounded-xl pointer-events-none w-72"></div>
+
+    <header class="bg-white dark:bg-gray-800 px-6 py-3 flex justify-between items-center shrink-0 shadow-md z-40 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center font-black text-white text-2xl shadow-sm">E</div>
+            <div>
+                <h1 class="font-bold text-xl leading-tight text-brand-slate dark:text-white tracking-tight">ERGOVENT Optimizer</h1>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Logistics & Packaging Core <span class="ml-2 text-emerald-500">KB-RB-upd1</span></p>
+            </div>
+        </div>
+        <div class="flex gap-4 items-center">
+            <button onclick="toggleTheme()" class="text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-brand-orange transition-colors uppercase tracking-wider border border-gray-200 dark:border-gray-600 rounded-full px-4 py-2 bg-gray-50 dark:bg-gray-800">Theme</button>
+            <div class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-full px-4 py-1.5 border border-gray-200 dark:border-gray-600">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Shipping EUR</span>
+                <input type="number" id="shipping-price" value="0" min="0" class="w-20 bg-transparent text-right outline-none text-base font-bold text-brand-slate dark:text-white">
+            </div>
+            <select id="transport-type" class="bg-gray-100 dark:bg-gray-700 text-sm font-bold rounded-full px-4 py-2 outline-none border border-gray-200 dark:border-gray-600 dark:text-white"></select>
+            <button onclick="generateOrder()" class="bg-brand-orange hover:opacity-90 px-6 py-2 rounded-full text-sm font-bold shadow-lg transition-all text-white uppercase tracking-wider">Generate order</button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden relative">
+        <aside class="w-[50%] flex flex-col z-10 bg-white dark:bg-gray-800 shadow-2xl overflow-hidden shrink-0 border-r border-gray-200 dark:border-gray-700">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 shrink-0">
+                <h2 class="font-extrabold text-brand-slate dark:text-white uppercase tracking-wider text-sm flex items-center">
+                    Product Database
+                    <span class="text-[11px] font-bold text-gray-500 ml-4 normal-case bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded flex items-center gap-1">
+                        +<input type="number" id="overhang-input" value="10" min="0" max="50" class="w-8 bg-transparent text-center outline-none text-brand-orange border-b border-brand-orange font-bold">cm
+                        <span class="ml-1 text-[9px] uppercase tracking-wider opacity-60">Allowed overhang</span>
+                    </span>
+                </h2>
+                <div class="flex gap-2">
+                    <button onclick="toggleAllGroups()" class="text-[10px] uppercase tracking-wider text-gray-500 font-bold hover:text-brand-orange transition-colors bg-white dark:bg-gray-700 px-3 py-1 rounded shadow-sm border border-gray-200 dark:border-gray-600">Expand/collapse</button>
+                    <button onclick="resetQuantities()" class="text-[10px] uppercase tracking-wider text-gray-400 font-bold hover:text-red-500 transition-colors bg-white dark:bg-gray-700 px-3 py-1 rounded shadow-sm border border-gray-200 dark:border-gray-600">Clear</button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="product-list"></div>
+        </aside>
+
+        <section class="flex-1 flex flex-col bg-brand-light dark:bg-gray-900 overflow-hidden relative">
+            <div class="grid grid-cols-2 gap-4 p-4 shrink-0 z-10 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/50">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-between">
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Payload breakdown</p>
+                    <div class="flex justify-between items-end mt-2">
+                        <div>
+                            <p class="text-3xl font-black text-brand-slate dark:text-white leading-none" id="kpi-units">0 <span class="text-sm font-normal text-gray-400">pcs</span></p>
+                            <div id="dynamic-category-counters" class="flex flex-wrap gap-1 mt-2 text-[8px] uppercase font-bold text-gray-500"></div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xl font-bold text-brand-slate dark:text-white leading-none" id="kpi-gross-weight">0.0 <span class="text-[9px] font-normal text-gray-400 uppercase">kg G</span></p>
+                            <p class="text-xs font-bold text-brand-orange leading-none mt-1" id="kpi-net-weight">0.0 <span class="text-[9px] font-normal uppercase">kg N</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <div class="h-full flex flex-col justify-between">
+                        <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Transport units</p>
+                        <div>
+                            <p class="text-4xl font-black text-brand-orange leading-none mt-1" id="kpi-pallets">0</p>
+                            <p class="text-xs font-bold text-gray-400 uppercase mt-0.5" id="kpi-pallet-type">Pallets</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="w-16 h-16 relative"><canvas id="efficiency-chart"></canvas></div>
+                        <p class="text-[9px] font-bold text-gray-500 uppercase tracking-wider text-center mt-1">
+                            Vol efficiency: <span class="text-xs font-black text-green-600 dark:text-green-400" id="kpi-efficiency">0%</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-span-2 bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mb-2">Unit selection & weight profile (click to switch 3D view)</p>
+                    <div id="pallet-weights-container" class="flex flex-wrap gap-2 text-sm overflow-y-auto max-h-16">
+                        <span class="text-gray-400 text-xs italic">No active loading configurations</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 relative bg-gray-100 dark:bg-[#0f172a]">
+                <div id="canvas-container" class="absolute inset-0"></div>
+
+                <div class="absolute top-4 left-4 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-xl z-20 text-xs pointer-events-none">
+                    <p class="font-bold text-[10px] uppercase text-brand-orange mb-1">Active space dimensions</p>
+                    <p class="text-gray-700 dark:text-gray-200">Load footprint: <span id="dim-footprint" class="font-mono font-bold">-</span></p>
+                    <p class="text-gray-700 dark:text-gray-200 mt-1">Max height cap: <span id="dim-maxheight" class="font-mono font-bold">-</span></p>
+                    <p class="text-gray-700 dark:text-gray-200 mt-1">Current load height: <span id="dim-currheight" class="font-mono font-bold">-</span></p>
+                </div>
+
+                <div id="overpack-warning" class="hidden absolute top-4 right-4 bg-red-100 dark:bg-red-950 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 rounded-xl shadow-lg text-xs font-bold z-20 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse"></span>
+                    <span id="warning-text">-</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Editable logistics model block. Values are in centimeters unless stated otherwise. -->
+    <script id="logistics-config">
+        const RAW_LOGISTICS_CSV = `TYPE,"Weight, net kg","Height, cm","Width, cm","Length, cm","Internal height, mm","Internal width, mm","Internal length, mm","Max height, cm"
+FIN pallet high (2.5m),20,15,100,120,,,,250
+FIN pallet low (2.2m),20,15,100,120,,,,225
+EUR pallet high (2.2m),20,15,80,120,,,,220
+EUR pallet low (1.95m),20,15,80,120,,,,195
+20HQ Container (Pallets),2315,,,,2390,2352,5898,229
+20HQ Container (Floor),2315,,,,2390,2352,5898,229
+40HQ Container (Pallets),3900,,,,2390,2352,12030,229
+40HQ Container (Floor),3900,,,,2390,2352,12030,229`;
+    </script>
+
+    <!-- Editable product database block. The parser accepts this CSV shape and TSV pasted from Google Sheets. -->
+    <script id="product-config">
+        const RAW_PRODUCTS_CSV = `Category,Code,EAN code,HS code,Name,"Gross weight, kg","Net weight, kg","Height, cm","Width, cm","Length, cm","Transport box, qty","Transport box Height, cm","Transport box Length, cm","Transport box width, cm",Max Units in FIN pallet,Max Units in 1 Layer FIN pallet,Max Number of Layers in FIN pallet
+Gypsum diffusers,RN100,4779051540112,841490,RONDO-100,3.1,2.5,15,32,32,4,32,64,32,168,24,7
+Gypsum diffusers,RN125,4779051540105,841490,RONDO-125,3.3,2.5,15,32,32,4,32,64,32,168,24,7
+Gypsum diffusers,RN150,4770051540327,841490,RONDO-150,4.3,3.4,17,37,37,2,33,37,33,126,18,7
+Gypsum diffusers,RN160,4779051540129,841490,RONDO-160,4.3,3.4,17,37,37,2,33,37,33,126,18,7
+Gypsum diffusers,KV100,4779051540138,841490,KVADRO-100,3.4,2.54,15,32,32,4,32,64,32,168,24,7
+Gypsum diffusers,KV125,4779051540143,841490,KVADRO-125,3.4,2.54,15,32,32,4,32,64,32,168,24,7
+Gypsum diffusers,RN100.CO,4779051541058,841490,RONDO COANDA-100,3.4,2.54,15,32,32,4,32,64,32,168,24,7
+Gypsum diffusers,RN125.CO,4779051540077,841490,RONDO COANDA-125,3.4,2.54,15,32,32,4,32,64,32,168,24,7
+LINEO PRO ventilation - 1 slot,LP75.120.101,4779051540341,841490,ERGOVENT LINEO PRO SINGLE (75 mm),10,6.25,20,124,18,1,20,124,18,60,6,10
+LINEO PRO ventilation - 1 slot,LP75.120.201,4779051540365,841490,ERGOVENT LINEO PRO PROFILE (75 mm),7.75,6.25,24,124,19,1,24,124,19,60,6,10
+LINEO PRO ventilation - 1 slot,LP75.120.301,4779051540389,841490,ERGOVENT LINEO PRO PUZZLE connected (75 mm),7.75,6.25,24,124,19,1,24,124,19,60,6,10
+LINEO PRO ventilation - 1 slot,LP90.120.101,4779051540600,841490,ERGOVENT LINEO PRO SINGLE (90 mm),10,6.25,20,124,18,1,20,124,18,60,6,10
+LINEO PRO ventilation - 1 slot,LP90.120.201,4779051540017,841490,ERGOVENT LINEO-PRO PROFILE (90 mm),7.75,6.25,24,124,19,1,24,124,19,60,6,10
+LINEO PRO ventilation - 1 slot,LP90.120.301,4779051540824,841490,ERGOVENT LINEO PRO PUZZLE connected (90mm),7,6.25,24,124,19,1,24,124,19,60,6,10
+LINEO PRO ventilation - 2 slot,LP75.220.301,4779051540884,841490,ERGOVENT LINEO PRO PUZZLE connected (75 mm / 2 slots),7,6.25,19,124,24,1,19,124,24,60,6,10
+LINEO PRO ventilation - 2 slot,LP90.220.301,4779051541041,841490,ERGOVENT LINEO PRO PUZZLE connected (90mm / 2 slots),7,6.25,24,124,19,1,24,124,19,60,6,10
+LINEO PRO AC,LP125.120301,4779051544,841490,ERGOVENT LINEO PRO CONDI-125 connected,10.12,8.26,21,124,24,1,21,124,24,60,6,10
+LINEO PRO AC,LP125.220301,477905154189,841490,ERGOVENT LINEO PRO CONDI-125 connected (2 slots),10.12,8.26,21,124,24,1,21,124,24,60,6,10
+LINEO PRO AC,LP150.320301,4779051540952,841490,ERGOVENT LINEO-PRO CONDI-150 connected (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
+LINEO PRO AC,LP160.320301,4779051540891,841490,ERGOVENT LINEO PRO CONDI-160 (3 slots),10.12,8.26,21,124,24,1,21,124,24,18,3,6
+LINEO 500 / 600,LN75.120.101,4779051540402,841490,ERGOVENT LINEO-500,3.4,2.96,18,54,23,1,18,54,23,60,6,10
+LINEO 500 / 600,LN75.120.201,4779051540426,841490,ERGOVENT LINEO-600,3.54,2.98,17,64,24,1,17,64,24,60,6,10
+LINEO 500 / 600,LN75.120.101,4779051540433,841490,ERGOVENT LINEO 600 VERTICAL connection,3.54,2.54,22,64,24,1,22,64,24,60,6,10
+Moulages 1 slot,LPM.120.303,4779051540778,841490,Moulage of ERGOVENT LINEO-PRO PUZZLE diffuser (1 slot x 200 mm),,,,,,,,,,,,
+Moulages 1 slot,LPM.120.302,4779051540785,841490,Moulage of ERGOVENT LINEO-PRO PUZZLE diffuser (1 slot x 500 mm),,,,,,,,,,,,
+Moulages 1 slot,LPM.120.301,4779051540792,841490,Moulage of ERGOVENT LINEO-PRO PUZZLE diffuser (1 slot x 1050 mm),,,,,,1,,,,,,
+Moulages 1 slot,LPM.120.304,4779051540808,841490,Corner connection for ERGOVENT LINEO-PRO PUZZLE diffuser (1 slot / RIGHT ANGLE),,,,,,1,,,,,,
+Moulages 1 slot,LPM.120.305,4779051540815,841490,Corner connection for ERGOVENT LINEO-PRO PUZZLE diffuser (1 slot / ROUNDED CORNER),,,,,,1,,,,,,
+Moulages 2 slot,LPM.220.303,4779051540840,841490,Moulage of ERGOVENT LINEO PRO PUZZLE diffuser (2 slots x 200 mm),,,,,,1,,,,,,
+Moulages 2 slot,LPM.220.302,47790515408,841490,Moulage of ERGOVENT LINEO-PRO PUZZLE diffuser (2 slots x 500 mm),3,2.32,110,230,680,1,,,,,,
+Moulages 2 slot,LPM.220.301,4779051540822,841490,Moulage of ERGOVENT LINEO-PRO PUZZLE diffuser (2 slots x 1050 mm),,,,,,1,,,,,,
+Moulages 2 slot,LPM.220.304,4779051540853,841490,Corner connection for ERGOVENT LINEO-PRO PUZZLE diffuser (2 slots / RIGHT ANGLE),1.34,0.92,115,270,320,1,,,,,,
+Moulages 2 slot,LPM.220.305,4779051540860,841490,Corner connection for ERGOVENT LINEO-PRO PUZZLE diffuser (2 slots / ROUNDED CORNER),1.34,0.92,115,270,320,1,,,,,,
+AERO-PRO,AE75.125.101,4779051540761,841490,PP plastic diffuser plenum box ERGOVENT AERO-PRO SLIM BOX 2x75,0.4,,20,175,9,10,,,,420,60,7
+AERO-PRO,D75-C,4779051540754,841490,PP plastic end cap ERGOVENT AERO-PRO O75-C,0.1,,1,120,200,10,,,,840,120,7
+Accessories for Gypsum diffusers,RN125C,4779051540280,841490,Replacement lid for RONDO 100/125 models,,,10,30,30,1,,,,,,
+Accessories for Gypsum diffusers,RN160C,4779051540297,841490,Replacement lid forRONDO 150/160 models,,,12,30,30,1,,,,,,
+Accessories for Gypsum diffusers,KV125C,4779051540303,841490,Replacement lid for KVADRO 100/125 models,,,10,30,30,1,,,,,,
+Accessories for Gypsum diffusers,MG100/125,4779051540310,841490,Magnets for RONDO & KVADRO 100/125 models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,MG 150/160,4779051540310,841490,Magnets for RONDO 150/160 models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,SR RN/KV,4779051541140,841490,Safety lines for RONDO & KVADRO models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,BR R-100/125,4779051541133,841490,Metal installation brackets for RONDO 100/125 models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,BR R-160/KV,4779051541126,841490,Metal installation brackets for RONDO 150/160 models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,BR K-100/125,4779051541126,841490,Metal installation brackets for KVADRO 100/125 models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,DM100,4779051541157,841490,Balancing damper for RONDO & KVADRO 100 models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,DM125,4779051541164,841490,Balancing damper for RONDO & KVADRO 125 models,,,,,,,,,,,,
+Accessories for Gypsum diffusers,DM150,4779051541218,841490,Balancing damper for RONDO 150 model,,,,,,,,,,,,
+Accessories for Gypsum diffusers,DM160,4779051541225,841490,Balancing damper for RONDO 160 model,,,,,,,,,,,,
+LINEO Spare Parts,LND75,4779051540688,841490,LINEO PRO 75mm duct connection,,,,,,1,,,,,,
+LINEO Spare Parts,LND90,4779051540689,841490,LINEO PRO 90mm duct connection,,,,,,1,,,,,,
+LINEO Spare Parts,LNDCAP1,4779051540709,841490,LINEO PRO duct closing cap,,,,,,,,,,,,
+LINEO Spare Parts,LP.P001,4779051540723,841490,LINEO PRO PUZZLE ending part,,,,,,,,,,,,
+LINEO Spare Parts,LPB4,4779051540990,841490,LINEO PRO damper measuring key (SNG-30mm),,,,,,,,,,,,
+LINEO Spare Parts,LPB4.1,4779051541003,841490,LINEO PRO damper measuring key (PRF-25mm),,,,,,,,,,,,
+LINEO Spare Parts,LP.P006,4779051541233,841490,Plastic connector ERGOVENT CNC160 / for 160 mm duct,,,,,,,,,,,,
+LINEO Spare Parts,LP.P007,4770061541249,841490,"Plastic connector ERGOVENT CNC160 / for 160 mm (6"") duct",,,,,,,,,,,,
+Marketing ,,,841490,Demo Box,5,5,12,34,41,1,13,35,42,228,12,19
+Marketing ,,,841490,Traffic lights,30,30,160,40,52,1,162,42,54,4,4,1
+Marketing ,,,841490,Metal stand,100,100,190,25,115,1,195,40,120,2,2,1`;
+    </script>
+
+    <!-- Editable order export template block. Keep these labels if the customer XLSX template changes. -->
+    <script id="order-template-config">
+        const ORDER_EXPORT_COLUMNS = [
+            "Product code",
+            "Product name",
+            "Quantity",
+            "Gross weight",
+            "Net weight",
+            "Total"
+        ];
+    </script>
+
+    <script id="engine-core">
+        const GROUP_ORDER = [
+            "Gypsum diffusers",
+            "LINEO PRO diffusers",
+            "LINEO PRO CONDI diffusers",
+            "Moulages (PUZZLE lock)",
+            "AERO PRO",
+            "Spare parts and accessories (Gypsum and LINEO)",
+            "Marketing displays"
+        ];
+
+        const GROUP_COLORS = {
+            "Gypsum diffusers": 0xf1f5f9,
+            "LINEO PRO diffusers": 0x0f172a,
+            "LINEO PRO CONDI diffusers": 0x334155,
+            "Moulages (PUZZLE lock)": 0x10b981,
+            "AERO PRO": 0x8b5cf6,
+            "Spare parts and accessories (Gypsum and LINEO)": 0xff671f,
+            "Marketing displays": 0xf59e0b
+        };
+
+        let logisticsData = [];
+        let productData = [];
+        let currentTransport = null;
+        let quantities = {};
+        let chartInstance = null;
+        let partitionedUnits = [];
+        let activeViewIndex = 0;
+
+        function parseNumber(value, fallback = 0) {
+            if (value === undefined || value === null || value === "") return fallback;
+            const parsed = parseFloat(String(value).replace(",", "."));
+            return Number.isFinite(parsed) ? parsed : fallback;
+        }
+
+        function parseInteger(value, fallback = 0) {
+            const parsed = parseInt(value, 10);
+            return Number.isFinite(parsed) ? parsed : fallback;
+        }
+
+        function parseDelimited(text) {
+            const delimiter = text.split(/\r?\n/, 1)[0].includes("\t") ? "\t" : ",";
+            const rows = [];
+            let row = [];
+            let value = "";
+            let quoted = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const next = text[i + 1];
+                if (char === '"') {
+                    if (quoted && next === '"') {
+                        value += '"';
+                        i++;
+                    } else {
+                        quoted = !quoted;
+                    }
+                } else if (char === delimiter && !quoted) {
+                    row.push(value);
+                    value = "";
+                } else if ((char === "\n" || char === "\r") && !quoted) {
+                    if (char === "\r" && next === "\n") i++;
+                    row.push(value);
+                    if (row.some(cell => cell !== "")) rows.push(row);
+                    row = [];
+                    value = "";
+                } else {
+                    value += char;
+                }
+            }
+
+            row.push(value);
+            if (row.some(cell => cell !== "")) rows.push(row);
+            return rows;
+        }
+
+        function normalizeDimensions(h, w, l) {
+            let dims = [parseNumber(h, 0), parseNumber(w, 0), parseNumber(l, 0)];
+            if (Math.max(...dims) > 300) dims = dims.map(value => value / 10);
+            return { h: dims[0], w: dims[1], l: dims[2] };
+        }
+
+        function normalizeGroup(rawCategory) {
+            const raw = (rawCategory || "").trim();
+            if (raw.includes("Accessories") || raw.includes("LINEO Spare Parts")) return "Spare parts and accessories (Gypsum and LINEO)";
+            if (raw.includes("Gypsum diffusers")) return "Gypsum diffusers";
+            if (raw.includes("LINEO PRO AC")) return "LINEO PRO CONDI diffusers";
+            if (raw.includes("LINEO PRO ventilation") || raw.includes("LINEO 500")) return "LINEO PRO diffusers";
+            if (raw.includes("Moulages")) return "Moulages (PUZZLE lock)";
+            if (raw.includes("AERO-PRO")) return "AERO PRO";
+            if (raw.includes("Marketing")) return "Marketing displays";
+            return raw || "Spare parts and accessories (Gypsum and LINEO)";
+        }
+
+        function priorityForGroup(group) {
+            if (group === "Marketing displays") return 1;
+            if (group === "Gypsum diffusers") return 2;
+            if (group === "LINEO PRO diffusers" || group === "LINEO PRO CONDI diffusers") return 3;
+            if (group === "Moulages (PUZZLE lock)") return 4;
+            if (group === "AERO PRO") return 5;
+            return 6;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function initApp() {
+            logisticsData = parseLogistics();
+            productData = parseProducts();
+            currentTransport = logisticsData[0];
+            quantities = Object.fromEntries(productData.map(product => [product.id, { pcs: 0, packs: 0 }]));
+
+            const transportSelect = document.getElementById("transport-type");
+            logisticsData.forEach(transport => {
+                const option = document.createElement("option");
+                option.value = transport.id;
+                option.textContent = `${transport.name} (Max H: ${transport.maxH}cm)`;
+                transportSelect.appendChild(option);
+            });
+
+            transportSelect.addEventListener("change", event => {
+                currentTransport = logisticsData.find(transport => transport.id === event.target.value);
+                document.getElementById("kpi-pallet-type").textContent = currentTransport.type === "container" ? "Containers" : "Pallets";
+                calculateROI();
+            });
+
+            document.getElementById("shipping-price").addEventListener("input", calculateROI);
+            document.getElementById("overhang-input").addEventListener("input", calculateROI);
+
+            buildProductUI();
+            initChart();
+            init3D();
+            calculateROI();
+        }
+
+        function parseLogistics() {
+            const rows = parseDelimited(RAW_LOGISTICS_CSV.trim());
+            return rows.slice(1).map(row => {
+                const name = row[0];
+                const lower = name.toLowerCase();
+                const isContainer = lower.includes("container");
+                const isFloorLoaded = lower.includes("floor");
+                return {
+                    id: name.toUpperCase().replace(/[^A-Z0-9]+/g, "_"),
+                    name,
+                    weight: parseNumber(row[1], 0),
+                    palletHeight: parseNumber(row[2], isContainer ? 0 : 15),
+                    w: parseNumber(row[3], isContainer ? parseNumber(row[6], 0) / 10 : 100),
+                    l: parseNumber(row[4], isContainer ? parseNumber(row[7], 0) / 10 : 120),
+                    maxH: parseNumber(row[8], isContainer ? (parseNumber(row[5], 0) / 10) - 10 : 250),
+                    type: isContainer ? "container" : "pallet",
+                    isFloorLoaded
+                };
+            }).filter(row => row.name);
+        }
+
+        function parseProducts() {
+            const rows = parseDelimited(RAW_PRODUCTS_CSV.trim());
+            return rows.slice(1).map((row, index) => {
+                if (!row[1] && !row[4]) return null;
+                const group = normalizeGroup(row[0]);
+                const productDims = normalizeDimensions(row[7], row[8], row[9]);
+                const transportDims = normalizeDimensions(
+                    row[11] || productDims.h || 10,
+                    row[13] || productDims.w || 10,
+                    row[12] || productDims.l || 10
+                );
+                const code = (row[1] || `MKTG-${index + 1}`).trim();
+                const packQty = Math.max(1, parseInteger(row[10], 1));
+                return {
+                    id: `${code}-${index}`,
+                    code,
+                    ean: row[2] || "",
+                    hs: row[3] || "841490",
+                    name: row[4] || code,
+                    cat: group,
+                    gw: parseNumber(row[5], 0),
+                    nw: parseNumber(row[6], 0),
+                    packQty,
+                    boxH: transportDims.h || productDims.h || 10,
+                    boxW: transportDims.w || productDims.w || 10,
+                    boxL: transportDims.l || productDims.l || 10,
+                    maxFin: parseInteger(row[14], 0),
+                    layerUnitsFin: parseInteger(row[15], 0),
+                    maxLayersFin: parseInteger(row[16], 0),
+                    priority: priorityForGroup(group),
+                    color: GROUP_COLORS[group] || 0xff671f
+                };
+            }).filter(Boolean).sort((a, b) => {
+                const groupDiff = GROUP_ORDER.indexOf(a.cat) - GROUP_ORDER.indexOf(b.cat);
+                if (groupDiff !== 0) return groupDiff;
+                return a.name.localeCompare(b.name);
+            });
+        }
+
+        function buildProductUI() {
+            const listEl = document.getElementById("product-list");
+            listEl.innerHTML = "";
+
+            GROUP_ORDER.forEach((group, index) => {
+                const products = productData.filter(product => product.cat === group);
+                if (!products.length) return;
+
+                const details = document.createElement("details");
+                details.className = "bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-visible mb-3";
+                if (index === 0) details.open = true;
+
+                details.innerHTML = `
+                    <summary class="px-5 py-3 font-bold text-brand-slate dark:text-gray-200 text-xs cursor-pointer flex justify-between items-center bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-t-2xl">
+                        <span class="flex items-center gap-2">
+                            <span class="w-5 h-5 rounded-full bg-brand-orange text-white flex items-center justify-center text-[10px] font-black">${index + 1}</span>
+                            ${escapeHtml(group)}
+                            <span id="group-total-${index}" class="text-[9px] font-mono bg-white dark:bg-gray-700 text-brand-slate dark:text-gray-300 px-2 py-0.5 rounded-full shadow-sm ml-2 border border-gray-200 dark:border-gray-600">0 pcs</span>
+                        </span>
+                        <span class="text-brand-orange">v</span>
+                    </summary>
+                    <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-b-2xl">
+                        <table class="w-full text-left text-xs min-w-[700px]">
+                            <thead class="bg-gray-50 dark:bg-gray-800 text-gray-500 uppercase tracking-wider text-[9px]">
+                                <tr>
+                                    <th class="py-2 px-3 w-8 text-center">Info</th>
+                                    <th class="py-2 px-3 w-32">Code/HS</th>
+                                    <th class="py-2 px-3">Name</th>
+                                    <th class="py-2 px-3 text-center">Pack qty</th>
+                                    <th class="py-2 px-3 text-center">Net/Gross (kg)</th>
+                                    <th class="py-2 px-3 text-center">Ship EUR</th>
+                                    <th class="py-2 px-3 text-right w-28">Order qty</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                                ${products.map(product => `
+                                    <tr class="hover:bg-orange-50/40 dark:hover:bg-gray-800/50 transition-colors">
+                                        <td class="py-2 px-2 text-center">
+                                            <button type="button" class="product-info w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center text-[10px] font-bold cursor-help mx-auto hover:bg-brand-orange hover:text-white"
+                                                data-id="${escapeHtml(product.id)}">?</button>
+                                        </td>
+                                        <td class="py-2 px-3 font-mono text-[10px]">
+                                            <span class="font-bold text-gray-700 dark:text-gray-300">${escapeHtml(product.code)}</span><br>
+                                            <span class="text-gray-400">HS: ${escapeHtml(product.hs)}</span>
+                                        </td>
+                                        <td class="py-2 px-3 font-bold text-brand-slate dark:text-gray-200 truncate max-w-[190px]">${escapeHtml(product.name)}</td>
+                                        <td class="py-2 px-3 text-center font-mono">${product.packQty}</td>
+                                        <td class="py-2 px-3 text-center font-mono text-[10px] text-gray-500">${product.nw.toFixed(2)} / ${product.gw.toFixed(2)}</td>
+                                        <td class="py-2 px-3 text-center font-mono text-[10px] text-emerald-600 dark:text-emerald-400" id="ship-${escapeHtml(product.id)}">-</td>
+                                        <td class="py-2 px-3 text-right">
+                                            <input type="number" min="0" step="${product.packQty}" value="0" data-id="${escapeHtml(product.id)}"
+                                                class="qty-input w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold focus:border-brand-orange dark:focus:border-brand-orange outline-none">
+                                        </td>
+                                    </tr>
+                                `).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                listEl.appendChild(details);
+            });
+
+            document.querySelectorAll(".qty-input").forEach(input => {
+                input.addEventListener("input", event => {
+                    const product = productData.find(item => item.id === event.target.dataset.id);
+                    updateQuantity(product.id, Math.max(0, parseInteger(event.target.value, 0)));
+                });
+                input.addEventListener("change", event => {
+                    const product = productData.find(item => item.id === event.target.dataset.id);
+                    let value = Math.max(0, parseInteger(event.target.value, 0));
+                    if (value % product.packQty !== 0) value = Math.ceil(value / product.packQty) * product.packQty;
+                    event.target.value = value;
+                    updateQuantity(product.id, value);
+                });
+            });
+
+            document.querySelectorAll(".product-info").forEach(button => {
+                button.addEventListener("mouseenter", event => showProductTooltip(event, button.dataset.id));
+                button.addEventListener("mouseleave", hideTooltip);
+            });
+        }
+
+        function showProductTooltip(event, productId) {
+            const product = productData.find(item => item.id === productId);
+            if (!product) return;
+            const tooltip = document.getElementById("global-tooltip");
+            tooltip.innerHTML = `
+                <div class="h-20 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 mb-2 flex items-center justify-center text-[10px] text-gray-400 font-mono">${escapeHtml(product.code)}</div>
+                <p class="font-bold text-brand-slate dark:text-white text-xs">${escapeHtml(product.name)}</p>
+                <p class="text-[10px] text-gray-500 mt-1">Transport box: ${product.boxL.toFixed(1)} x ${product.boxW.toFixed(1)} x ${product.boxH.toFixed(1)} cm</p>
+                <p class="text-[10px] text-gray-500">Pack quantity step: ${product.packQty} pcs</p>
+            `;
+            tooltip.classList.remove("hidden");
+            tooltip.style.left = `${event.clientX + 15}px`;
+            tooltip.style.top = `${Math.max(10, event.clientY - 60)}px`;
+        }
+
+        function hideTooltip() {
+            document.getElementById("global-tooltip").classList.add("hidden");
+        }
+
+        function toggleAllGroups() {
+            const details = document.querySelectorAll("#product-list details");
+            const shouldOpen = Array.from(details).some(item => !item.open);
+            details.forEach(item => item.open = shouldOpen);
+        }
+
+        function updateQuantity(productId, pcs) {
+            const product = productData.find(item => item.id === productId);
+            quantities[productId] = { pcs, packs: Math.ceil(pcs / product.packQty) };
+            calculateROI();
+        }
+
+        function resetQuantities() {
+            document.querySelectorAll(".qty-input").forEach(input => input.value = 0);
+            Object.keys(quantities).forEach(id => quantities[id] = { pcs: 0, packs: 0 });
+            document.getElementById("shipping-price").value = 0;
+            calculateROI();
+        }
+
+        function initChart() {
+            const ctx = document.getElementById("efficiency-chart").getContext("2d");
+            chartInstance = new Chart(ctx, {
+                type: "doughnut",
+                data: { datasets: [{ data: [0, 100], backgroundColor: ["#FF671F", "#e2e8f0"], borderWidth: 0, cutout: "75%" }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: { duration: 250 }, plugins: { tooltip: { enabled: false } } }
+            });
+        }
+
+        function updateChart(efficiency) {
+            if (!chartInstance) return;
+            const color = efficiency >= 99.9 ? "#10b981" : (efficiency > 70 ? "#FF671F" : "#ef4444");
+            chartInstance.data.datasets[0].data = [Math.min(100, efficiency), Math.max(0, 100 - efficiency)];
+            chartInstance.data.datasets[0].backgroundColor = [color, document.documentElement.classList.contains("dark") ? "#374151" : "#e2e8f0"];
+            chartInstance.update();
+        }
+
+        function getOverhang() {
+            return Math.max(0, parseNumber(document.getElementById("overhang-input").value, 0));
+        }
+
+        function getAllowedFootprint() {
+            const overhang = getOverhang();
+            const canOverhang = currentTransport.type === "pallet" && !currentTransport.isFloorLoaded;
+            return {
+                w: currentTransport.w + (canOverhang ? overhang : 0),
+                l: currentTransport.l + (canOverhang ? overhang : 0)
+            };
+        }
+
+        function getBaseHeight() {
+            if (currentTransport.isFloorLoaded) return 0;
+            return currentTransport.type === "pallet" ? currentTransport.palletHeight : 0;
+        }
+
+        function getUsableProductHeight() {
+            return Math.max(1, currentTransport.maxH - getBaseHeight());
+        }
+
+        function bestBoxesPerLayer(product) {
+            const footprint = getAllowedFootprint();
+            const normal = Math.floor(footprint.w / product.boxW) * Math.floor(footprint.l / product.boxL);
+            const rotated = Math.floor(footprint.w / product.boxL) * Math.floor(footprint.l / product.boxW);
+            return Math.max(0, normal, rotated);
+        }
+
+        function productCapacityUnits(product) {
+            const boxesByFootprint = bestBoxesPerLayer(product);
+            const calculatedLayerUnits = boxesByFootprint * product.packQty;
+            const layerUnits = product.layerUnitsFin > 0
+                ? Math.min(product.layerUnitsFin, calculatedLayerUnits || product.layerUnitsFin)
+                : calculatedLayerUnits;
+            const layersByHeight = Math.max(1, Math.floor(getUsableProductHeight() / product.boxH));
+            const layers = product.maxLayersFin > 0 ? Math.min(product.maxLayersFin, layersByHeight) : layersByHeight;
+            const capacity = layerUnits * layers;
+            if (capacity > 0) return capacity;
+            const footprint = getAllowedFootprint();
+            const allowedVolume = footprint.w * footprint.l * getUsableProductHeight();
+            const boxVolume = Math.max(1, product.boxW * product.boxL * product.boxH);
+            return Math.max(product.packQty, Math.floor(allowedVolume / boxVolume) * product.packQty);
+        }
+
+        function buildActivePacks() {
+            const packs = [];
+            productData.forEach(product => {
+                const quantity = quantities[product.id];
+                if (!quantity || quantity.pcs <= 0) return;
+                for (let i = 0; i < quantity.packs; i++) {
+                    packs.push({
+                        product,
+                        pcs: product.packQty,
+                        gross: product.gw * product.packQty,
+                        net: product.nw * product.packQty,
+                        volume: product.boxH * product.boxW * product.boxL
+                    });
+                }
+            });
+            return packs.sort((a, b) => {
+                if (a.product.priority !== b.product.priority) return a.product.priority - b.product.priority;
+                return (b.product.boxW * b.product.boxL) - (a.product.boxW * a.product.boxL);
+            });
+        }
+
+        function calculateROI() {
+            const activePacks = buildActivePacks();
+            const totalPcs = productData.reduce((sum, product) => sum + (quantities[product.id]?.pcs || 0), 0);
+            const productGross = productData.reduce((sum, product) => sum + product.gw * (quantities[product.id]?.pcs || 0), 0);
+            const productNet = productData.reduce((sum, product) => sum + product.nw * (quantities[product.id]?.pcs || 0), 0);
+            const shippingTotal = parseNumber(document.getElementById("shipping-price").value, 0);
+            const shipPerItem = totalPcs > 0 ? shippingTotal / totalPcs : 0;
+
+            updateShippingCells(totalPcs, shipPerItem);
+            updateGroupTotals();
+
+            partitionedUnits = [];
+            if (activePacks.length) {
+                let unit = createUnit();
+                partitionedUnits.push(unit);
+
+                activePacks.forEach(pack => {
+                    const capacity = productCapacityUnits(pack.product);
+                    const fraction = pack.pcs / capacity;
+                    const wouldOverflow = unit.packs.length > 0 && (unit.fraction + fraction > 1.000001);
+                    if (wouldOverflow) {
+                        finalizeUnit(unit);
+                        unit = createUnit();
+                        partitionedUnits.push(unit);
+                    }
+                    unit.packs.push(pack);
+                    unit.gross += pack.gross;
+                    unit.net += pack.net;
+                    unit.volume += pack.volume;
+                    unit.fraction += fraction;
+                });
+                partitionedUnits.forEach(finalizeUnit);
+            }
+
+            if (activeViewIndex >= partitionedUnits.length) activeViewIndex = Math.max(0, partitionedUnits.length - 1);
+
+            const transportGross = partitionedUnits.length * currentTransport.weight;
+            const totalGross = productGross + transportGross;
+            const overallEfficiency = partitionedUnits.length
+                ? partitionedUnits.reduce((sum, unit) => sum + unit.efficiency, 0) / partitionedUnits.length
+                : 0;
+
+            document.getElementById("kpi-units").innerHTML = `${totalPcs} <span class="text-xs font-normal text-gray-400">pcs</span>`;
+            document.getElementById("kpi-gross-weight").innerHTML = `${totalGross.toFixed(1)} <span class="text-[10px] font-normal text-gray-400 uppercase">kg G</span>`;
+            document.getElementById("kpi-net-weight").innerHTML = `${productNet.toFixed(1)} <span class="text-[10px] font-normal uppercase">kg N</span>`;
+            document.getElementById("kpi-pallets").textContent = partitionedUnits.length;
+            document.getElementById("kpi-efficiency").textContent = `${overallEfficiency.toFixed(1)}%`;
+
+            updateChart(overallEfficiency);
+            renderUnitBadges();
+            updateWarnings();
+
+            if (partitionedUnits.length) {
+                switchActiveView(activeViewIndex);
+            } else {
+                document.getElementById("dim-footprint").textContent = "-";
+                document.getElementById("dim-maxheight").textContent = "-";
+                document.getElementById("dim-currheight").textContent = "-";
+                renderStack3D([]);
+            }
+        }
+
+        function createUnit() {
+            return {
+                packs: [],
+                gross: currentTransport.weight,
+                net: 0,
+                volume: 0,
+                fraction: 0,
+                efficiency: 0,
+                currHeight: 0,
+                placements: []
+            };
+        }
+
+        function finalizeUnit(unit) {
+            const layout = computePlacements(unit.packs);
+            unit.currHeight = layout.productHeight;
+            unit.placements = layout.placements;
+            const footprint = getAllowedFootprint();
+            const allowedVolume = footprint.w * footprint.l * getUsableProductHeight();
+            const fractionEfficiency = Math.min(100, unit.fraction * 100);
+            const volumeEfficiency = allowedVolume > 0 ? Math.min(100, (unit.volume / allowedVolume) * 100) : 0;
+            unit.efficiency = currentTransport.type === "pallet" ? fractionEfficiency : volumeEfficiency;
+        }
+
+        function updateShippingCells(totalPcs, shipPerItem) {
+            productData.forEach(product => {
+                const cell = document.getElementById(`ship-${product.id}`);
+                const pcs = quantities[product.id]?.pcs || 0;
+                if (!cell) return;
+                if (pcs > 0 && totalPcs > 0) {
+                    cell.innerHTML = `EUR ${(shipPerItem * pcs).toFixed(1)}<br><span class="text-[8px] text-gray-400">EUR ${shipPerItem.toFixed(2)}/pc</span>`;
+                } else {
+                    cell.textContent = "-";
+                }
+            });
+        }
+
+        function updateGroupTotals() {
+            const counters = document.getElementById("dynamic-category-counters");
+            counters.innerHTML = "";
+            GROUP_ORDER.forEach((group, index) => {
+                const total = productData
+                    .filter(product => product.cat === group)
+                    .reduce((sum, product) => sum + (quantities[product.id]?.pcs || 0), 0);
+                const badge = document.getElementById(`group-total-${index}`);
+                if (badge) badge.textContent = `${total} pcs`;
+                if (total > 0) {
+                    const item = document.createElement("span");
+                    item.className = "bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded truncate max-w-[160px] border border-gray-200 dark:border-gray-600 font-mono";
+                    item.textContent = `${group.slice(0, 12)}: ${total}`;
+                    counters.appendChild(item);
+                }
+            });
+        }
+
+        function renderUnitBadges() {
+            const container = document.getElementById("pallet-weights-container");
+            if (!partitionedUnits.length) {
+                container.innerHTML = `<span class="text-gray-400 text-xs italic py-2">No active units</span>`;
+                return;
+            }
+            container.innerHTML = partitionedUnits.map((unit, index) => {
+                const active = index === activeViewIndex;
+                const style = active
+                    ? "bg-brand-slate text-white border-transparent shadow-lg transform -translate-y-1"
+                    : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600";
+                return `
+                    <div onclick="switchActiveView(${index})" class="unit-badge border px-4 py-2 rounded-xl flex flex-col cursor-pointer min-w-[120px] ${style}">
+                        <div class="flex justify-between items-center border-b ${active ? "border-gray-500" : "border-gray-200 dark:border-gray-600"} pb-1 mb-1">
+                            <span class="font-bold text-xs uppercase">Unit ${index + 1}</span>
+                            <span class="text-[10px] font-black text-brand-orange bg-black/10 px-1 py-0.5 rounded">${unit.efficiency.toFixed(0)}%</span>
+                        </div>
+                        <div class="flex justify-between text-[10px] font-mono">
+                            <span>G: ${unit.gross.toFixed(0)}kg</span>
+                            <span class="${active ? "text-gray-300" : "text-gray-400"}">N: ${unit.net.toFixed(0)}kg</span>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function updateWarnings() {
+            const panel = document.getElementById("overpack-warning");
+            const warningText = document.getElementById("warning-text");
+            const inefficientUnit = partitionedUnits.find((unit, index) => index > 0 && unit.efficiency < 20);
+            if (inefficientUnit) {
+                panel.classList.remove("hidden");
+                warningText.textContent = `Inefficient space: one unit is only ${inefficientUnit.efficiency.toFixed(1)}% loaded.`;
+            } else {
+                panel.classList.add("hidden");
+            }
+        }
+
+        function switchActiveView(index) {
+            if (!partitionedUnits[index]) return;
+            activeViewIndex = index;
+            renderUnitBadges();
+            renderStack3D(partitionedUnits[index].packs);
+            const footprint = getAllowedFootprint();
+            const loadHeight = getBaseHeight() + partitionedUnits[index].currHeight;
+            document.getElementById("dim-footprint").textContent = `${footprint.w.toFixed(0)} x ${footprint.l.toFixed(0)} cm`;
+            document.getElementById("dim-maxheight").textContent = `${currentTransport.maxH.toFixed(0)} cm`;
+            document.getElementById("dim-currheight").textContent = `${loadHeight.toFixed(1)} cm`;
+        }
+
+        function computePlacements(packs) {
+            const footprint = getAllowedFootprint();
+            const baseHeight = getBaseHeight();
+            const maxY = currentTransport.maxH;
+            const placements = [];
+            let x = -footprint.w / 2;
+            let z = -footprint.l / 2;
+            let y = baseHeight;
+            let rowDepth = 0;
+            let layerHeight = 0;
+            let layerIndex = 0;
+
+            packs.forEach(pack => {
+                const product = pack.product;
+                const options = orientationOptions(product, footprint, layerIndex);
+                let selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || options[0];
+
+                if (x + selected.w > footprint.w / 2) {
+                    x = -footprint.w / 2;
+                    z += rowDepth;
+                    rowDepth = 0;
+                }
+
+                selected = options.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || selected;
+
+                if (z + selected.l > footprint.l / 2) {
+                    x = -footprint.w / 2;
+                    z = -footprint.l / 2;
+                    y += layerHeight;
+                    layerHeight = 0;
+                    rowDepth = 0;
+                    layerIndex++;
+                    const layerOptions = orientationOptions(product, footprint, layerIndex);
+                    selected = layerOptions.find(option => x + option.w <= footprint.w / 2 && z + option.l <= footprint.l / 2) || layerOptions[0];
+                }
+
+                if (y + product.boxH <= maxY + 0.001) {
+                    placements.push({
+                        pack,
+                        x: x + selected.w / 2,
+                        y: y + product.boxH / 2,
+                        z: z + selected.l / 2,
+                        w: selected.w,
+                        h: product.boxH,
+                        l: selected.l,
+                        rotated: selected.rotated
+                    });
+                    x += selected.w;
+                    rowDepth = Math.max(rowDepth, selected.l);
+                    layerHeight = Math.max(layerHeight, product.boxH);
+                }
+            });
+
+            return {
+                placements,
+                productHeight: Math.max(0, y + layerHeight - baseHeight)
+            };
+        }
+
+        function orientationOptions(product, footprint, layerIndex) {
+            const normal = { w: product.boxW, l: product.boxL, rotated: false };
+            const rotated = { w: product.boxL, l: product.boxW, rotated: true };
+            const normalCapacity = Math.floor(footprint.w / normal.w) * Math.floor(footprint.l / normal.l);
+            const rotatedCapacity = Math.floor(footprint.w / rotated.w) * Math.floor(footprint.l / rotated.l);
+            if (rotatedCapacity > normalCapacity) return [rotated, normal];
+            if (normalCapacity > rotatedCapacity) return [normal, rotated];
+            return layerIndex % 2 === 0 ? [normal, rotated] : [rotated, normal];
+        }
+
+        function generateOrder() {
+            const selectedRows = productData
+                .filter(product => (quantities[product.id]?.pcs || 0) > 0)
+                .map(product => {
+                    const pcs = quantities[product.id].pcs;
+                    return {
+                        "Product code": product.code,
+                        "Product name": product.name,
+                        "Quantity": pcs,
+                        "Gross weight": Number((product.gw * pcs).toFixed(2)),
+                        "Net weight": Number((product.nw * pcs).toFixed(2)),
+                        "Total": Number((product.gw * pcs).toFixed(2))
+                    };
+                });
+
+            if (!selectedRows.length) {
+                alert("Cannot generate an order without added products.");
+                return;
+            }
+
+            const totalRow = {
+                "Product code": "TOTAL",
+                "Product name": "",
+                "Quantity": selectedRows.reduce((sum, row) => sum + row.Quantity, 0),
+                "Gross weight": Number(selectedRows.reduce((sum, row) => sum + row["Gross weight"], 0).toFixed(2)),
+                "Net weight": Number(selectedRows.reduce((sum, row) => sum + row["Net weight"], 0).toFixed(2)),
+                "Total": Number(selectedRows.reduce((sum, row) => sum + row.Total, 0).toFixed(2))
+            };
+
+            const unitRows = partitionedUnits.map((unit, index) => ({
+                Unit: index + 1,
+                "Transport model": currentTransport.name,
+                "Footprint cm": `${getAllowedFootprint().w.toFixed(0)} x ${getAllowedFootprint().l.toFixed(0)}`,
+                "Load height cm": Number((getBaseHeight() + unit.currHeight).toFixed(1)),
+                "Gross kg": Number(unit.gross.toFixed(2)),
+                "Net kg": Number(unit.net.toFixed(2)),
+                "Efficiency %": Number(unit.efficiency.toFixed(1))
+            }));
+
+            if (window.XLSX) {
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([...selectedRows, totalRow], { header: ORDER_EXPORT_COLUMNS }), "Order");
+                XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(unitRows), "Transport units");
+                XLSX.writeFile(workbook, `ERGOVENT_Order_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            } else {
+                const lines = [ORDER_EXPORT_COLUMNS.join(",")]
+                    .concat([...selectedRows, totalRow].map(row => ORDER_EXPORT_COLUMNS.map(column => `"${String(row[column] ?? "").replaceAll('"', '""')}"`).join(",")));
+                const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `ERGOVENT_Order_${new Date().toISOString().slice(0, 10)}.csv`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }
+        }
+    </script>
+
+    <script id="three-core">
+        let scene, camera, renderer, controls, stackGroup, raycaster, mouse;
+        let interactiveBoxes = [];
+
+        function init3D() {
+            const container = document.getElementById("canvas-container");
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf1f5f9);
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 3000);
+            camera.position.set(260, 220, 260);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.02;
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.72);
+            scene.add(ambient);
+            const directLight = new THREE.DirectionalLight(0xffffff, 0.55);
+            directLight.position.set(160, 280, 120);
+            directLight.castShadow = true;
+            scene.add(directLight);
+
+            const floor = new THREE.Mesh(
+                new THREE.PlaneGeometry(3000, 3000),
+                new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 1.0 })
+            );
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            stackGroup = new THREE.Group();
+            scene.add(stackGroup);
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            container.addEventListener("mousemove", onMouseMove);
+            container.addEventListener("mouseleave", hideTooltip);
+            window.addEventListener("resize", onWindowResize);
+            animate();
+        }
+
+        function update3DBackground() {
+            if (!scene) return;
+            scene.background.set(document.documentElement.classList.contains("dark") ? 0x0f172a : 0xf1f5f9);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById("canvas-container");
+            if (!container || !camera || !renderer) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function onMouseMove(event) {
+            if (!renderer) return;
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const hit = raycaster.intersectObjects(interactiveBoxes)[0];
+            if (!hit) {
+                hideTooltip();
+                return;
+            }
+            const data = hit.object.userData;
+            const tooltip = document.getElementById("global-tooltip");
+            tooltip.innerHTML = `
+                <p class="font-bold text-xs text-brand-orange">${escapeHtml(data.code)}</p>
+                <p class="font-bold text-[11px] text-gray-700 dark:text-gray-200">${escapeHtml(data.name)}</p>
+                <p class="text-[10px] text-gray-500 mt-1">Dims: ${data.l.toFixed(1)} x ${data.w.toFixed(1)} x ${data.h.toFixed(1)} cm</p>
+                <p class="text-[10px] text-gray-500">Rotation: ${data.rotated ? "90 degrees" : "0 degrees"}</p>
+            `;
+            tooltip.classList.remove("hidden");
+            tooltip.style.left = `${event.clientX + 15}px`;
+            tooltip.style.top = `${Math.max(10, event.clientY - 45)}px`;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function disposeObject(child) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (Array.isArray(child.material)) child.material.forEach(material => material.dispose());
+                else child.material.dispose();
+            }
+            child.children.forEach(disposeObject);
+        }
+
+        function clearStack() {
+            while (stackGroup.children.length) {
+                const child = stackGroup.children[0];
+                stackGroup.remove(child);
+                disposeObject(child);
+            }
+            interactiveBoxes = [];
+        }
+
+        function renderStack3D(packs) {
+            if (!scene) return;
+            clearStack();
+
+            const footprint = getAllowedFootprint();
+            const baseHeight = getBaseHeight();
+            const maxH = currentTransport.maxH;
+            const actualBaseW = currentTransport.w;
+            const actualBaseL = currentTransport.l;
+
+            if (baseHeight > 0) {
+                const palletBase = new THREE.Mesh(
+                    new THREE.BoxGeometry(actualBaseW, baseHeight, actualBaseL),
+                    new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 })
+                );
+                palletBase.position.y = baseHeight / 2;
+                palletBase.castShadow = true;
+                palletBase.receiveShadow = true;
+                stackGroup.add(palletBase);
+            }
+
+            const limitLines = new THREE.LineSegments(
+                new THREE.EdgesGeometry(new THREE.BoxGeometry(footprint.w, maxH, footprint.l)),
+                new THREE.LineBasicMaterial({ color: 0xff671f, transparent: true, opacity: 0.22 })
+            );
+            limitLines.position.y = maxH / 2;
+            stackGroup.add(limitLines);
+
+            if (!packs || packs.length === 0) return;
+            const layout = computePlacements(packs);
+            if (partitionedUnits[activeViewIndex]) {
+                partitionedUnits[activeViewIndex].currHeight = layout.productHeight;
+                partitionedUnits[activeViewIndex].placements = layout.placements;
+            }
+
+            layout.placements.forEach(placement => {
+                const product = placement.pack.product;
+                const geo = new THREE.BoxGeometry(Math.max(1, placement.w - 0.5), Math.max(1, placement.h - 0.5), Math.max(1, placement.l - 0.5));
+                const mat = new THREE.MeshStandardMaterial({
+                    color: product.color,
+                    roughness: 0.58,
+                    metalness: 0.08,
+                    polygonOffset: true,
+                    polygonOffsetFactor: 1,
+                    polygonOffsetUnits: 1
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(placement.x, placement.y, placement.z);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.userData = {
+                    code: product.code,
+                    name: product.name,
+                    l: product.boxL,
+                    w: product.boxW,
+                    h: product.boxH,
+                    rotated: placement.rotated
+                };
+
+                const frame = new THREE.LineSegments(
+                    new THREE.EdgesGeometry(geo),
+                    new THREE.LineBasicMaterial({ color: product.color === 0x0f172a ? 0xffffff : 0x000000, transparent: true, opacity: 0.24 })
+                );
+                mesh.add(frame);
+                stackGroup.add(mesh);
+                interactiveBoxes.push(mesh);
+            });
+
+            const distance = Math.max(footprint.w, footprint.l, maxH) * 1.55;
+            camera.position.set(distance, distance * 0.82, distance);
+            controls.target.set(0, maxH / 3, 0);
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
