@@ -2,15 +2,15 @@
 
 Created after horizontal partial-layer fix for LINEO (75mm); before extending the same rule to LINEO PRO, LINEO PRO CONDI, Moulages, AERO PRO, and spare parts.
 
-## Restore
+Git commit: `7009879` — *Extend layer-first horizontal packing to PRO, CONDI, Moulages, AERO, and spare parts.*
+
+## Restore (revert to pre-family-layer state)
 
 ```
-git checkout HEAD -- lib/packing/ergovent-engine.ts .cursor/rules/packing-no-overlap.mdc
+git checkout 7009879^ -- lib/packing/ergovent-engine.ts .cursor/rules/packing-no-overlap.mdc
 ```
 
 Or copy files from this folder back to their live paths:
 
 - `ergovent-engine.ts` → `lib/packing/ergovent-engine.ts`
 - `packing-no-overlap.mdc` → `.cursor/rules/packing-no-overlap.mdc`
-
-After restore, create a git commit to mark the restore point in history.

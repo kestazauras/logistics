@@ -1,0 +1,9 @@
+TYPE,Weight net kg,Height cm,Width cm,Length cm,Internal height mm,Internal width mm,Internal length mm,Max height cm
+FIN pallet high (2.5m),20,15,100,120,,,,250
+FIN pallet low (2.2m),20,15,100,120,,,,225
+EUR pallet high (2.2m),20,15,80,120,,,,220
+EUR pallet low (1.95m),20,15,80,120,,,,195
+20HQ ppl,2315,,,,2390,2352,5898,229
+20HQ floor loaded,2315,,,,2390,2352,5898,229
+40HQ ppl,3900,,,,2390,2352,12030,229
+40HQ floor loaded,3900,,,,2390,2352,12030,229

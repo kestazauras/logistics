@@ -82,6 +82,63 @@ export function lineoFamilyCellSize(items: ExpandedItem[]): { cellW: number; cel
   return { cellW, cellL };
 }
 
+type OrientedFootprint = { w: number; l: number; h: number };
+
+function packTightRows(
+  footprints: OrientedFootprint[],
+  packWidth: number,
+  packLength: number,
+): Array<{ x: number; z: number; w: number; l: number; h: number }> | null {
+  const rows: OrientedFootprint[][] = [];
+  let row: OrientedFootprint[] = [];
+  let rowW = 0;
+
+  for (const footprint of footprints) {
+    if (row.length && rowW + footprint.w > packWidth + 0.001) {
+      rows.push(row);
+      row = [];
+      rowW = 0;
+    }
+    row.push(footprint);
+    rowW += footprint.w;
+  }
+  if (row.length) rows.push(row);
+
+  let z = 0;
+  const placed: Array<{ x: number; z: number; w: number; l: number; h: number }> = [];
+  for (const currentRow of rows) {
+    const rowL = Math.max(...currentRow.map((footprint) => footprint.l));
+    if (z + rowL > packLength + 0.001) return null;
+    let x = 0;
+    for (const footprint of currentRow) {
+      placed.push({ x, z, w: footprint.w, l: footprint.l, h: footprint.h });
+      x += footprint.w;
+    }
+    z += rowL;
+  }
+  return placed;
+}
+
+function centerLayerBlock(
+  positions: Array<{ x: number; z: number; w: number; l: number; h: number }>,
+  packWidth: number,
+  packLength: number,
+): void {
+  if (!positions.length) return;
+  const minX = Math.min(...positions.map((pos) => pos.x));
+  const maxX = Math.max(...positions.map((pos) => pos.x + pos.w));
+  const minZ = Math.min(...positions.map((pos) => pos.z));
+  const maxZ = Math.max(...positions.map((pos) => pos.z + pos.l));
+  const blockW = maxX - minX;
+  const blockL = maxZ - minZ;
+  const dx = (packWidth - blockW) / 2 - minX;
+  const dz = (packLength - blockL) / 2 - minZ;
+  for (const pos of positions) {
+    pos.x += dx;
+    pos.z += dz;
+  }
+}
+
 export function buildLineoGridLayer(
   items: ExpandedItem[],
   layerY: number,
@@ -91,46 +148,29 @@ export function buildLineoGridLayer(
   alternateLayers: boolean,
   layerUnitsFin: number,
   existingPacked: PlacedItem[] = [],
-  cellW?: number,
-  cellL?: number,
+  _cellW?: number,
+  _cellL?: number,
 ): PlacedItem[] | null {
   if (!items.length) return [];
-  const first = items[0];
-  const orientation = lineoPlanarOrientation(first.w, first.l, first.h, layerIndex, alternateLayers);
-  const spacingW = cellW ?? orientation.w;
-  const spacingL = cellL ?? orientation.l;
-  const support = layerY > 0.1 ? supportBoundsAtY(layerY, existingPacked) : null;
-  const regionW = packWidth;
-  const regionL = packLength;
-  const supportCoverage = support ? ((support.maxX - support.minX) * (support.maxZ - support.minZ)) / (packWidth * packLength) : 1;
-  const maxRows = support && supportCoverage < 0.7 ? 1 : Infinity;
-  const physicalMax = maxLineoUnitsPerLayer(24, spacingW, spacingL, regionW, regionL);
-  if (physicalMax <= 0) return null;
-  const grid = pickLineoLayerGrid(physicalMax, spacingW, spacingL, regionW, regionL, maxRows);
-  if (!grid) return null;
+  const maxItems = Math.min(items.length, layerUnitsFin);
 
-  const toPlace = Math.min(items.length, grid.cols * grid.rows);
-  const startX = 0;
-  const startZ = 0;
+  for (let count = maxItems; count >= 1; count--) {
+    const slice = items.slice(0, count);
+    const footprints = slice.map((item) =>
+      lineoPlanarOrientation(item.w, item.l, item.h, layerIndex, alternateLayers),
+    );
+    const positions = packTightRows(footprints, packWidth, packLength);
+    if (!positions) continue;
+    centerLayerBlock(positions, packWidth, packLength);
 
-  const placed: PlacedItem[] = [];
-  for (let index = 0; index < toPlace; index++) {
-    const item = items[index];
-    const itemOrientation = lineoPlanarOrientation(item.w, item.l, item.h, layerIndex, alternateLayers);
-    const col = index % grid.cols;
-    const row = Math.floor(index / grid.cols);
-    placed.push({
+    return slice.map((item, index) => ({
       ...item,
-      x: startX + col * spacingW + (spacingW - itemOrientation.w) / 2,
-      z: startZ + row * spacingL,
+      ...positions[index],
       y: layerY,
-      w: itemOrientation.w,
-      l: itemOrientation.l,
-      h: itemOrientation.h,
       ruleLayer: true,
-    });
+    }));
   }
-  return placed;
+  return null;
 }
 
 export function lineoPlacementScore(

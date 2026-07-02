@@ -224,12 +224,16 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
     updateQuantity(product.id, Math.max(0, parseInteger(rawValue, 0)));
   };
 
-  const handleQtyChange = (product: Product, rawValue: string) => {
+  const commitQtyInput = (product: Product, rawValue: string) => {
     let value = Math.max(0, parseInteger(rawValue, 0));
     if (value % product.packQty !== 0) {
       value = Math.ceil(value / product.packQty) * product.packQty;
     }
     updateQuantity(product.id, value);
+  };
+
+  const handleQtyChange = (product: Product, rawValue: string) => {
+    commitQtyInput(product, rawValue);
   };
 
   const resetQuantities = () => {
@@ -395,7 +399,7 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
                 id={`qty-${product.id}`}
                 type="number"
                 min={0}
-                step={product.packQty}
+                step={1}
                 value={qtyValue}
                 data-id={product.id}
                 className="qty-input w-14 bg-transparent px-1 py-1 text-center font-mono font-bold text-brand-slate dark:text-white outline-none"
@@ -403,10 +407,15 @@ export default function OptimizerApp({ initialData }: OptimizerAppProps) {
                   if (e.target.value === "0") e.target.value = "";
                 }}
                 onBlur={(e) => {
-                  if (e.target.value === "") handleQtyInput(product, "0");
+                  commitQtyInput(product, e.target.value === "" ? "0" : e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  commitQtyInput(product, e.currentTarget.value === "" ? "0" : e.currentTarget.value);
+                  e.currentTarget.blur();
                 }}
                 onInput={(e) => handleQtyInput(product, e.currentTarget.value)}
-                onChange={(e) => handleQtyChange(product, e.currentTarget.value)}
               />
               <button
                 type="button"

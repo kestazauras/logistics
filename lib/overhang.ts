@@ -1,15 +1,10 @@
 import type { Product, TransportRecord } from "./types";
 import { lineoPlanarOrientation, pickLineoLayerGrid } from "./packing/lineo-grid";
+import { pickLineo500LayerPlan } from "./packing/lineo500-bricklaying";
 
 const MAX_OVERHANG_CM = 50;
 
 type LayerGrid = { cols: number; rows: number };
-
-/** LINEO-500: 2 rows width-wise × 4 pcs length-wise on pallet (long side across width). */
-function lineo500PalletOrientation(boxW: number, boxL: number, boxH: number): { w: number; l: number; h: number } {
-  const dims = [boxW, boxL, boxH].sort((a, b) => a - b);
-  return { w: dims[2], l: dims[1], h: dims[0] };
-}
 
 function layerGridForProduct(
   product: Product,
@@ -18,7 +13,14 @@ function layerGridForProduct(
 ): LayerGrid | null {
   if (["RN150", "RN160"].includes(product.code)) return { cols: 3, rows: 3 };
   if (product.cat === "LINEO (75mm)" && product.name.includes("LINEO-500")) {
-    return { cols: 2, rows: 4 };
+    const plan = pickLineo500LayerPlan(
+      product.boxW,
+      product.boxL,
+      product.boxH,
+      palletWidth,
+      palletLength,
+    );
+    return plan ? { cols: plan.cols, rows: plan.rows } : null;
   }
   if (product.cat === "LINEO (75mm)") {
     const units = product.layerUnitsFin || 6;
@@ -50,10 +52,12 @@ function requiredForGrid(
   palletLength: number,
   product?: Product,
 ): number {
-  const oriented =
-    product?.cat === "LINEO (75mm)" && product.name.includes("LINEO-500")
-      ? lineo500PalletOrientation(boxW, boxL, boxH)
-      : lineoPlanarOrientation(boxW, boxL, boxH, 0, false);
+  if (product?.cat === "LINEO (75mm)" && product.name.includes("LINEO-500")) {
+    const plan = pickLineo500LayerPlan(boxW, boxL, boxH, palletWidth, palletLength);
+    if (!plan) return 0;
+    return Math.max(0, plan.cols * plan.cellW - palletWidth, plan.rows * plan.cellL - palletLength);
+  }
+  const oriented = lineoPlanarOrientation(boxW, boxL, boxH, 0, false);
   const needWidth = grid.cols * oriented.w - palletWidth;
   const needLength = grid.rows * oriented.l - palletLength;
   return Math.max(0, needWidth, needLength);

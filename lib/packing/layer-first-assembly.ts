@@ -6,8 +6,6 @@ import {
 import {
   buildLineoGridLayer,
   lineoFamilyCellSize,
-  lineoPlanarOrientation,
-  maxLineoUnitsPerLayer,
 } from "./lineo-grid";
 import { buildLineoSkuBatches, type LineoSkuBatch } from "./lineo-sku-layers";
 import type { ExpandedItem, LayerRule, Obstacle, PalletizedConfig, PlacedItem } from "../types";
@@ -34,6 +32,7 @@ export interface LayerFirstAssemblyContext {
     obstacles: Obstacle[],
   ): boolean;
   familyLayerUnits(key: string, item: ExpandedItem): number;
+  getBottomSupportRatio(candidate: PlacedItem, packedItems: PlacedItem[]): number;
 }
 
 function perLayerForBatch(
@@ -88,6 +87,11 @@ const stackRule: LayerRule = {
   flatOnly: true,
   allowRuleStack: true,
 };
+
+function layerHasSupport(layer: PlacedItem[], packedItems: PlacedItem[], ctx: LayerFirstAssemblyContext): boolean {
+  if (layer[0].y <= 0.001) return true;
+  return layer.every((item) => ctx.getBottomSupportRatio(item, packedItems) >= 0.5);
+}
 
 /** Full horizontal layers first (any SKU), then co-packed partial remainders on top. */
 export function packLayerFirstAssembly(
@@ -206,7 +210,8 @@ export function packLayerFirstAssembly(
           packHeight,
           packedItems,
           obstacles,
-        )
+        ) &&
+        layerHasSupport(gridLayer, packedItems, ctx)
       ) {
         packedItems.push(...gridLayer);
         cursorY += Math.max(...gridLayer.map((item) => item.h));
@@ -223,7 +228,10 @@ export function packLayerFirstAssembly(
         rows: 1,
       };
       const layer = ctx.buildCenteredLayer([sample], rule, config.width, config.length, cursorY);
-      if (!validateLayer(layer, 1, stackRule, ctx, config.width, config.length, packHeight, packedItems, obstacles)) {
+      if (
+        !validateLayer(layer, 1, stackRule, ctx, config.width, config.length, packHeight, packedItems, obstacles) ||
+        !layerHasSupport(layer!, packedItems, ctx)
+      ) {
         remaining.push(...pool);
         break;
       }
