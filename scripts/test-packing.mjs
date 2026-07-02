@@ -258,6 +258,57 @@ for (const transport of palletTransports) {
   }
 }
 
+// LP75.220.301 and LP90.220.301: identical stacking geometry
+{
+  const transport = palletTransports.find((t) => t.name.includes("FIN pallet high"));
+  const lp75 = products.find((p) => p.code === "LP75.220.301");
+  const lp90 = products.find((p) => p.code === "LP90.220.301");
+  if (transport && lp75 && lp90) {
+    const fingerprint = (placements) =>
+      placements
+        .map(
+          (p) =>
+            `${Math.round(p.x)},${Math.round(p.z)},${Math.round(p.y)},${Math.round(p.w)},${Math.round(p.l)},${Math.round(p.h)}`,
+        )
+        .sort()
+        .join("|");
+    const packSku = (product, pcs) => {
+      const state = {
+        productData: products,
+        quantities: quantitiesFor(product, pcs),
+        currentTransport: transport,
+        partitionedUnits: [],
+        activeViewIndex: 0,
+      };
+      const transportCtx = createTransportContext(state, rulesCtx, () =>
+        computeDefaultPalletOverhang(products, transport),
+      );
+      const engine = new ErgoventLogisticsOptimizer(transportCtx, rulesCtx);
+      return computePlacements(packsForProduct(product, pcs), engine);
+    };
+    const pcs = 12;
+    const layout75 = packSku(lp75, pcs);
+    const layout90 = packSku(lp90, pcs);
+    if (layout75.placements.length !== pcs || layout90.placements.length !== pcs) {
+      failures.push(
+        `LP75/LP90 220.301: placed ${layout75.placements.length}/${layout90.placements.length} of ${pcs}`,
+      );
+    } else if (
+      lp75.boxW !== lp90.boxW ||
+      lp75.boxL !== lp90.boxL ||
+      lp75.boxH !== lp90.boxH
+    ) {
+      failures.push(
+        `LP75.220.301 box dims ${lp75.boxW}x${lp75.boxL}x${lp75.boxH} != LP90 ${lp90.boxW}x${lp90.boxL}x${lp90.boxH}`,
+      );
+    } else if (fingerprint(layout75.placements) !== fingerprint(layout90.placements)) {
+      failures.push("LP75.220.301 and LP90.220.301: stacking geometry differs");
+    } else {
+      console.log("LP75/LP90 220.301 stacking parity: OK");
+    }
+  }
+}
+
 // LINEO-500/600: 5 and 6 pcs share same 4-wide grid at 10 cm overhang
 {
   const transport = palletTransports.find((t) => t.name.includes("FIN pallet high"));
